@@ -4,9 +4,16 @@ import { RetrievalRequest, RetrievalRequestSchema } from "../../schemas/retrieva
 import { RAGRequestSchema } from "../../schemas/rag/ragRequestSchema";
 import { z } from "zod";
 import { RetrievalResponseSchema } from "../../schemas/retrieval/retrievalResponseSchema";
+import { GenerationRequest } from "../../schemas/generation/generationRequestSchema";
+import { GenerationResponseSchema } from "../../schemas/generation/generationResponseSchema";
 
 // Fake answer
-const answer: RAGResponse = {answer: "I don't know!"};
+function get_prompt(question: string, documents: string[]): string {
+  return `Rulebook lines:\n${documents.join("\n")}\n
+          User question: "${question}"
+          Instruction:
+          Provide a short answer to the user's rules question, referencing the rulebook lines above. Don't preface it.`;
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -19,8 +26,10 @@ export default async function handler(
   }
 
   try {
+    // Validate request
     const valid_request = RAGRequestSchema.parse(req.body);
 
+    // Call Retrieval service
     const retr_req: RetrievalRequest = {
       game: valid_request["game"],
       question: valid_request["question"]
@@ -42,10 +51,38 @@ export default async function handler(
 
     const retrieval_data = await retrieval_response.json()
 
-    const validatedResponse = RetrievalResponseSchema.parse(retrieval_data);
+    const valid_retr_response = RetrievalResponseSchema.parse(retrieval_data);
     
+    // Construct prompt and call generation service
+    const prompt = get_prompt(valid_request.question, valid_retr_response.documents)
+    console.log(prompt)
+    const gen_req: GenerationRequest = {
+      model: "llama3.1",
+      stream: false,
+      prompt: prompt
+    }
+
+    const gen_response = await fetch('http://localhost:11434/api/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(gen_req),
+    })
+    
+    if (!gen_response.ok) {
+      console.error("Error from generation service:", gen_response.statusText);
+      res.status(502).json({ answer: "Error querying generation service" });
+      return;
+    }
+
+    const gen_data = await gen_response.json()
+
+    const valid_gen_response = GenerationResponseSchema.parse(gen_data);
+
+    // Return answer to user
     const response: RAGResponse = {
-      answer: validatedResponse.documents[0]
+      answer: valid_gen_response.response
     }
 
     res.status(200).json(response)

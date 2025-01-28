@@ -38,7 +38,7 @@ export default function Index() {
           Submit
         </button>
       </form>
-      <h1 className="text-xl">{answer}</h1>
+      <h1 className="text-xl max-w-2/3">{answer}</h1>
     </div>
   );
 }
