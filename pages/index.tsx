@@ -27,6 +27,7 @@ export default function Index() {
 
   return (
     <div className="flex h-screen justify-center items-center flex-col">
+      <h1 className="text-6xl pb-12 font-title">Boardally</h1>
       <form onSubmit={onSubmit} className="flex flex-col items-center bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
         <div className="mb-4">
           <input name="game" type="text" placeholder="Board game" className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"/>

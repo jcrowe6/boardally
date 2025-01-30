@@ -6,13 +6,15 @@ import { z } from "zod";
 import { RetrievalResponseSchema } from "../../schemas/retrieval/retrievalResponseSchema";
 import { GenerationRequest } from "../../schemas/generation/generationRequestSchema";
 import { GenerationResponseSchema } from "../../schemas/generation/generationResponseSchema";
+import { PineconeRequest } from "../../schemas/pinecone/pineconeRequestSchema";
+import { PineconeResponseSchema } from "../../schemas/pinecone/pineconeResponseSchema";
 
 // Fake answer
 function get_prompt(question: string, documents: string[]): string {
   return `Rulebook lines:\n${documents.join("\n")}\n
           User question: "${question}"
           Instruction:
-          Provide a short answer to the user's rules question, referencing the rulebook lines above. Don't preface it.`;
+          Provide a short answer to the user's rules question, referencing the rulebook lines above. If the answer cannot be determined from the rules, say so. Don't preface it.`;
 }
 
 export default async function handler(
@@ -25,20 +27,37 @@ export default async function handler(
     return;
   }
 
+  if (!process.env.PINECONE_HOST) {
+    throw new Error('PINECONE_HOST is not defined in environment variables');
+  }
+
+  if (!process.env.PINECONE_API_KEY) {
+    throw new Error('PINECONE_API_KEY is not defined in environment variables');
+  }
+
   try {
     // Validate request
     const valid_request = RAGRequestSchema.parse(req.body);
 
     // Call Retrieval service
-    const retr_req: RetrievalRequest = {
-      game: valid_request["game"],
-      question: valid_request["question"]
+    const retr_req: PineconeRequest = {
+      query: {
+        inputs: {
+          text: valid_request["question"]
+        },
+        top_k: 10
+      },
+      fields: ["text", "page_num"]
     }
-
-    const retrieval_response = await fetch('http://localhost:8000/query', {
+    
+    const pc_uri = `${process.env.PINECONE_HOST}/records/namespaces/${valid_request["game"]}/search`
+    const retrieval_response = await fetch(pc_uri, {
       method: 'POST',
       headers: {
+        'Accept': 'application/json',
         'Content-Type': 'application/json',
+        'Api-Key': process.env.PINECONE_API_KEY, 
+        'X-Pinecone-API-Version': 'unstable'
       },
       body: JSON.stringify(retr_req),
     })
@@ -51,10 +70,12 @@ export default async function handler(
 
     const retrieval_data = await retrieval_response.json()
 
-    const valid_retr_response = RetrievalResponseSchema.parse(retrieval_data);
+    const valid_retr_response = PineconeResponseSchema.parse(retrieval_data);
     
+    const docs: string[] = valid_retr_response.result.hits.map((hit) => hit.fields.text)
+
     // Construct prompt and call generation service
-    const prompt = get_prompt(valid_request.question, valid_retr_response.documents)
+    const prompt = get_prompt(valid_request.question, docs)
     console.log(prompt)
     const gen_req: GenerationRequest = {
       model: "llama3.1",
