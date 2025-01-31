@@ -1,16 +1,21 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { RAGResponse } from "../../schemas/rag/ragResponseSchema";
-import { RetrievalRequest, RetrievalRequestSchema } from "../../schemas/retrieval/retrievalRequestSchema";
 import { RAGRequestSchema } from "../../schemas/rag/ragRequestSchema";
 import { z } from "zod";
-import { RetrievalResponseSchema } from "../../schemas/retrieval/retrievalResponseSchema";
-import { GenerationRequest } from "../../schemas/generation/generationRequestSchema";
-import { GenerationResponseSchema } from "../../schemas/generation/generationResponseSchema";
 import { PineconeRequest } from "../../schemas/pinecone/pineconeRequestSchema";
 import { PineconeResponseSchema } from "../../schemas/pinecone/pineconeResponseSchema";
+import { FireworksRequest } from "../../schemas/fireworks/fireworksRequestSchema";
+import { FireworksResponseSchema } from "../../schemas/fireworks/fireworksResponseSchema";
 
-// Fake answer
-function get_prompt(question: string, documents: string[]): string {
+const getRequiredEnvVar = (name: string): string => {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} is not defined in environment variables`);
+  }
+  return value;
+};
+
+const get_prompt = (question: string, documents: string[]): string => {
   return `Rulebook lines:\n${documents.join("\n")}\n
           User question: "${question}"
           Instruction:
@@ -27,13 +32,10 @@ export default async function handler(
     return;
   }
 
-  if (!process.env.PINECONE_HOST) {
-    throw new Error('PINECONE_HOST is not defined in environment variables');
-  }
-
-  if (!process.env.PINECONE_API_KEY) {
-    throw new Error('PINECONE_API_KEY is not defined in environment variables');
-  }
+  const requiredEnvVars = ['PINECONE_HOST', 'PINECONE_API_KEY', 'FIREWORKS_HOST', 'FIREWORKS_API_KEY', 'FIREWORKS_MODEL'] as const;
+  const env = Object.fromEntries(
+    requiredEnvVars.map(key => [key, getRequiredEnvVar(key)])
+  );
 
   try {
     // Validate request
@@ -50,13 +52,13 @@ export default async function handler(
       fields: ["text", "page_num"]
     }
     
-    const pc_uri = `${process.env.PINECONE_HOST}/records/namespaces/${valid_request["game"]}/search`
+    const pc_uri = `${env.PINECONE_HOST}/records/namespaces/${valid_request["game"]}/search`
     const retrieval_response = await fetch(pc_uri, {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'Api-Key': process.env.PINECONE_API_KEY, 
+        'Api-Key': env.PINECONE_API_KEY, 
         'X-Pinecone-API-Version': 'unstable'
       },
       body: JSON.stringify(retr_req),
@@ -73,20 +75,26 @@ export default async function handler(
     const valid_retr_response = PineconeResponseSchema.parse(retrieval_data);
     
     const docs: string[] = valid_retr_response.result.hits.map((hit) => hit.fields.text)
-
+    console.log(docs)
     // Construct prompt and call generation service
     const prompt = get_prompt(valid_request.question, docs)
-    console.log(prompt)
-    const gen_req: GenerationRequest = {
-      model: "llama3.1",
-      stream: false,
-      prompt: prompt
+    
+    const gen_req: FireworksRequest = {
+      model: env.FIREWORKS_MODEL,
+      messages: [
+        {
+          role: "user",
+          content: prompt
+        }
+      ]
     }
 
-    const gen_response = await fetch('http://localhost:11434/api/generate', {
+    const gen_response = await fetch(`${env.FIREWORKS_HOST}/inference/v1/chat/completions`, {
       method: 'POST',
       headers: {
+        "Accept": "application/json",
         'Content-Type': 'application/json',
+        "Authorization": `Bearer ${env.FIREWORKS_API_KEY}`
       },
       body: JSON.stringify(gen_req),
     })
@@ -99,11 +107,18 @@ export default async function handler(
 
     const gen_data = await gen_response.json()
 
-    const valid_gen_response = GenerationResponseSchema.parse(gen_data);
+    const valid_gen_response = FireworksResponseSchema.parse(gen_data);
+
+    const answer = valid_gen_response.choices[0].message.content
+    if (!answer) {
+      console.error("Generation returned null content");
+      res.status(502).json({ answer: "Error querying generation service" });
+      return;
+    }
 
     // Return answer to user
     const response: RAGResponse = {
-      answer: valid_gen_response.response
+      answer: answer
     }
 
     res.status(200).json(response)
