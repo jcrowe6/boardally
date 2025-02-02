@@ -4,11 +4,12 @@ const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export default function Index() {
   const [answer, setAnswer] = React.useState("")
-
-  let testQuery = {game: "Azul", question: "who wins?"} 
+  const [isError, setIsError] = React.useState(false)
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+
+    setIsError(false)
 
     const formData = new FormData(event.currentTarget)
     const formDataJson = JSON.stringify(Object.fromEntries(formData))
@@ -21,7 +22,14 @@ export default function Index() {
       body: formDataJson,
     })
 
+    if (!response.ok) {
+      console.error(response.statusText);
+      setIsError(true)
+      return;
+    }
+
     const data = await response.json()
+    
     setAnswer(data["answer"])
   }
 
@@ -39,7 +47,7 @@ export default function Index() {
           Submit
         </button>
       </form>
-      <h1 className="text-xl max-w-2/3">{answer}</h1>
+      <h1 className="text-xl max-w-2/3">{!isError ? answer : "Sorry, there's been an error."}</h1>
     </div>
   );
 }
