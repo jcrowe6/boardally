@@ -3,9 +3,10 @@ import { RAGResponse } from "../../schemas/rag/ragResponseSchema";
 import { RAGRequestSchema } from "../../schemas/rag/ragRequestSchema";
 import { z } from "zod";
 import { PineconeRequest } from "../../schemas/pinecone/pineconeRequestSchema";
-import { PineconeResponseSchema } from "../../schemas/pinecone/pineconeResponseSchema";
+import { PineconeResponse, PineconeResponseSchema } from "../../schemas/pinecone/pineconeResponseSchema";
 import { FireworksRequest } from "../../schemas/fireworks/fireworksRequestSchema";
 import { FireworksResponseSchema } from "../../schemas/fireworks/fireworksResponseSchema";
+import { Hit } from "../../schemas/pinecone/fieldSchema";
 
 const getRequiredEnvVar = (name: string): string => {
   const value = process.env[name];
@@ -15,11 +16,15 @@ const getRequiredEnvVar = (name: string): string => {
   return value;
 };
 
-const get_prompt = (question: string, documents: string[]): string => {
-  return `Rulebook lines:\n${documents.join("\n")}\n
+const get_prompt = (question: string, hits: Hit[]): string => {
+  const ref_texts = hits.map((hit) => `[Page ${hit.fields.page_num}]\n${hit.fields.text}`)
+  return `Rulebook pages:\n${ref_texts.join("\n")}\n\n
           User question: "${question}"
           Instruction:
-          Provide a short answer to the user's rules question, referencing the rulebook lines above. If the answer cannot be determined from the rules, say so. Don't preface it.`;
+          Provide a concise answer to the user's rules question, \
+          referencing the rulebook pages. \
+          If the answer cannot be determined from the rules, say "I'm sorry, I can't determine the answer to your question". \
+          Be sure to cite the page(s) you used.`;
 }
 
 export default async function handler(
@@ -47,7 +52,10 @@ export default async function handler(
         inputs: {
           text: valid_request["question"]
         },
-        top_k: 10
+        filter: {
+          chunk_type: "page"
+        },
+        top_k: 3
       },
       fields: ["text", "page_num"]
     }
@@ -74,11 +82,9 @@ export default async function handler(
 
     const valid_retr_response = PineconeResponseSchema.parse(retrieval_data);
     
-    const docs: string[] = valid_retr_response.result.hits.map((hit) => hit.fields.text)
-    console.log(docs)
     // Construct prompt and call generation service
-    const prompt = get_prompt(valid_request.question, docs)
-    
+    const prompt = get_prompt(valid_request.question, valid_retr_response.result.hits)
+    console.log(prompt)
     const gen_req: FireworksRequest = {
       model: env.FIREWORKS_MODEL,
       messages: [
