@@ -6,6 +6,9 @@
     "start": "next start"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.751.0",
+    "@aws-sdk/lib-dynamodb": "^3.751.0",
+    "@aws-sdk/util-dynamodb": "^3.751.0",
     "@tailwindcss/postcss": "^4.0.0",
     "next": "latest",
     "react": "^18.2.0",
