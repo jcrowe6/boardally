@@ -1,14 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
-import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb"
 import { RAGResponse } from "../../schemas/rag/ragResponseSchema";
 import { RAGRequestSchema } from "../../schemas/rag/ragRequestSchema";
 import { z } from "zod";
-import { PineconeRequest } from "../../schemas/pinecone/pineconeRequestSchema";
-import { PineconeResponse, PineconeResponseSchema } from "../../schemas/pinecone/pineconeResponseSchema";
-import { FireworksRequest } from "../../schemas/fireworks/fireworksRequestSchema";
-import { FireworksResponseSchema } from "../../schemas/fireworks/fireworksResponseSchema";
-import { Hit } from "../../schemas/pinecone/fieldSchema";
+import { GoogleAIFileManager, FileState } from "@google/generative-ai/server";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { resumableUpload } from "../../scripts/resumableUploadForGoogleAPIs"
+import { getBestRuleBookKey } from "../../utils/dynamoDBclient";
 
 const getRequiredEnvVar = (name: string): string => {
   const value = process.env[name];
@@ -18,64 +15,16 @@ const getRequiredEnvVar = (name: string): string => {
   return value;
 };
 
-const client = new DynamoDBClient({
-  region: "us-east-2"
-});
+const requiredEnvVars = ['GEMINI_API_KEY'] as const;
+const env = Object.fromEntries(
+  requiredEnvVars.map(key => [key, getRequiredEnvVar(key)])
+);
 
-const docClient = DynamoDBDocumentClient.from(client);
+const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
+const googleFileManager = new GoogleAIFileManager(env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-export const getRulebookTextFromGameId = async(gameId: string) => {
-  const command = new QueryCommand({
-      TableName: "boardally-rulebook-metadata",
-      KeyConditionExpression: "#id = :id",
-      ExpressionAttributeValues: {
-        ":id": gameId
-      },
-      ExpressionAttributeNames: {
-        "#id": "game_id"
-      }
-  })
-  
-  try {
-    const response = await docClient.send(command);
-    const items = response.Items
-    if (items === undefined) {
-      throw Error("Failed on call to DB")
-    } else if (items.length == 0) { 
-      throw Error("Got 0 rulebooks")
-    } else if (items.length > 1) { 
-      throw Error("Got multiple rulebooks")
-    } else {
-      const rulebook = items[0]["ocr_md"]
-      if (!rulebook) {
-        throw Error("No scan for rulebook")
-      }
-      return rulebook
-    }
-  } catch (error) {
-      throw error
-  }
-}
 
-const getPromptWithHits = (question: string, hits: Hit[]): string => {
-  const ref_texts = hits.map((hit) => `[Page ${hit.fields.page_num}]\n${hit.fields.text}`)
-  return `Rulebook pages:\n${ref_texts.join("\n")}\n\n
-          User question: "${question}"
-          Instruction:
-          Provide a concise answer to the user's rules question, \
-          referencing the rulebook pages. \
-          If the answer cannot be determined from the rules, say "I'm sorry, I can't determine the answer to your question". \
-          Be sure to cite the page(s) you used.`;
-}
-
-const getPromptWithFullRulebook = (question: string, rulebook: string): string => {
-  return `Rulebook:\n${rulebook}\n
-          User question: "${question}"
-          Instruction:
-          Provide a concise answer to the user's rules question, \
-          referencing the rulebook. \
-          Be sure to cite the sections you used.`;
-}
 
 export default async function handler(
   req: NextApiRequest,
@@ -87,64 +36,67 @@ export default async function handler(
     return;
   }
 
-  const requiredEnvVars = ['PINECONE_HOST', 'PINECONE_API_KEY', 'FIREWORKS_HOST', 'FIREWORKS_API_KEY', 'FIREWORKS_MODEL'] as const;
-  const env = Object.fromEntries(
-    requiredEnvVars.map(key => [key, getRequiredEnvVar(key)])
-  );
-
   try {
     // Validate request
     const valid_request = RAGRequestSchema.parse(req.body);
-
-    // Call Retrieval service
-    const rulebookText = await getRulebookTextFromGameId(valid_request.game)
     
-    // Construct prompt and call generation service
-    const prompt = getPromptWithFullRulebook(valid_request.question, rulebookText)
-    console.log(prompt)
-    const gen_req: FireworksRequest = {
-      model: env.FIREWORKS_MODEL,
-      messages: [
-        {
-          role: "user",
-          content: prompt
-        }
-      ]
-    }
+    // Get best rulebook S3 key
+    const rbkey = await getBestRuleBookKey(valid_request.game)
 
-    const gen_response = await fetch(`${env.FIREWORKS_HOST}/inference/v1/chat/completions`, {
-      method: 'POST',
-      headers: {
-        "Accept": "application/json",
-        'Content-Type': 'application/json',
-        "Authorization": `Bearer ${env.FIREWORKS_API_KEY}`
-      },
-      body: JSON.stringify(gen_req),
-    })
+    // Check if already in google files
+    let files = await googleFileManager.listFiles()
+    console.log(files)
     
-    if (!gen_response.ok) {
-      console.error("Error from generation service:", gen_response.statusText);
-      res.status(502).json({ answer: "Error querying generation service" });
-      return;
-    }
 
-    const gen_data = await gen_response.json()
+    // Todo: upload if not in google files, get file ref, prompt gemini with file ref
 
-    const valid_gen_response = FireworksResponseSchema.parse(gen_data);
+    // const object = {
+    //   fileUrl: s3Url,
+    //   filePath: "",
+    //   accessToken: "",
+    //   resumableUrl: `https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=resumable&key=${env.GEMINI_API_KEY}`,
+    //   dataSize: 7300541,
+    //   metadata: { 
+    //     file: {
+    //       mimeType: "application/pdf",
+    //       displayName: "Sky Team",
+    //     }
+    //   }
+    // };
+    // const uploadResult = await resumableUpload(object).catch((err) =>
+    //   console.log(err)
+    // );
 
-    const answer = valid_gen_response.choices[0].message.content
-    if (!answer) {
-      console.error("Generation returned null content");
-      res.status(502).json({ answer: "Error querying generation service" });
-      return;
-    }
+    // // The below script is from https://ai.google.dev/api/files#video
+    // let file = await googleFileManager.getFile(uploadResult.file.name);
+    // while (file.state === FileState.PROCESSING) {
+    //   process.stdout.write(".");
+    //   // Sleep for 10 seconds
+    //   await new Promise((resolve) => setTimeout(resolve, 10_000));
+    //   // Fetch the file from the API again
+    //   file = await googleFileManager.getFile(uploadResult.file.name);
+    // }
 
-    // Return answer to user
-    const response: RAGResponse = {
-      answer: answer
-    }
+    // if (file.state === FileState.FAILED) {
+    //   throw new Error("PDF processing failed.");
+    // }
 
-    res.status(200).json(response)
+    // // View the response.
+    // console.log(
+    //   `Uploaded file ${uploadResult.file.displayName} as: ${uploadResult.file.uri}`
+    // );
+
+    // const result = await model.generateContent([
+    //   "Tell me about this document.",
+    //   {
+    //     fileData: {
+    //       fileUri: uploadResult.file.uri,
+    //       mimeType: uploadResult.file.mimeType,
+    //     },
+    //   },
+    // ]);
+
+    res.status(200).json({answer: "foo"})
 
   } catch (error) {
     if (error instanceof z.ZodError) {
