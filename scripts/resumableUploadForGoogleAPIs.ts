@@ -1,4 +1,5 @@
 // Adapted from https://github.com/tanaikech/resumableUploadForGoogleAPIs_nodejs
+import { UploadFileResponse } from '@google/generative-ai/dist/server/server';
 import { default as stream } from 'node:stream'
 import type { ReadableStream } from 'node:stream/web'
 
@@ -11,7 +12,7 @@ export type ResumableUploadOptions = {
   chunkSize?: number;      // Chunk size in bytes. Default is 16MB. Should be multiples of 256KB
 }
 
-export function resumableUpload(options: ResumableUploadOptions) {
+export function resumableUpload(options: ResumableUploadOptions) : Promise<UploadFileResponse> {
   const {
     fileUrl = "",
     resumableUrl = "",
@@ -99,7 +100,7 @@ export function resumableUpload(options: ResumableUploadOptions) {
             try {
               resolve(JSON.parse(text));
             } catch (_) {
-              resolve(text);
+              reject(new Error("Failed to parse response as JSON"));
             }
             return;
           } else {
@@ -151,7 +152,7 @@ export function resumableUpload(options: ResumableUploadOptions) {
             try {
               resolve(JSON.parse(text));
             } catch (_) {
-              resolve(text);
+              reject(new Error("Failed to parse response as JSON"));
             }
             return;
           } else {

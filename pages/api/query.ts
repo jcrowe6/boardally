@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { RAGResponse } from "../../schemas/rag/ragResponseSchema";
 import { RAGRequestSchema } from "../../schemas/rag/ragRequestSchema";
 import { z } from "zod";
-import { GoogleAIFileManager, FileState } from "@google/generative-ai/server";
+import { GoogleAIFileManager, FileState, FileMetadataResponse } from "@google/generative-ai/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { resumableUpload, ResumableUploadOptions } from "../../scripts/resumableUploadForGoogleAPIs"
 import { getBestRuleBook } from "../../utils/dynamoDBclient";
@@ -25,6 +25,13 @@ const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
 const googleFileManager = new GoogleAIFileManager(env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
+function getPrompt(userQuestion: string) {
+  return `User question: "${userQuestion}"
+          Instruction: Provide a concise answer to the user's rules question, 
+          referencing the provided rulebook. Cite which section or sections 
+          you used to determine the answer.`;
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<RAGResponse>,
@@ -37,18 +44,19 @@ export default async function handler(
 
   try {
     // Validate request
-    const { game, question } = RAGRequestSchema.parse(req.body);
+    const { gameId, question } = RAGRequestSchema.parse(req.body);
 
     // Check if already in google files
     const files = await googleFileManager.listFiles()
-
-    const names = files.files ? files.files.map((file) => file.displayName) : []
     
-    const inFiles = names.includes(game)
+    if (!files.files) {
+      throw new Error("Error calling google files API")
+    }
     
-    // Upload file
-    if (!inFiles) {
-      const { s3_key, file_size_in_bytes } = await getBestRuleBook(game)
+    let fileMetadata = files.files.find(fileObj => fileObj.displayName === gameId)
+    
+    if (!fileMetadata) { // Upload file
+      const { s3_key, file_size_in_bytes } = await getBestRuleBook(gameId)
 
       const s3Url = await getSecureS3Url(s3_key)
 
@@ -60,47 +68,26 @@ export default async function handler(
         metadata: { 
           file: {
             mimeType: "application/pdf",
-            displayName: game,
+            displayName: gameId,
           }
         }
       };
       
-      const uploadResult = await resumableUpload(options);
-      console.log(uploadResult)
+      const uploadResult = await resumableUpload(options)
+      fileMetadata = uploadResult.file
     }
 
-    
+    const result = await model.generateContent([
+      getPrompt(question),
+      {
+        fileData: {
+          fileUri: fileMetadata.uri,
+          mimeType: fileMetadata.mimeType,
+        },
+      },
+    ]);
 
-    // // The below script is from https://ai.google.dev/api/files#video
-    // let file = await googleFileManager.getFile(uploadResult.file.name);
-    // while (file.state === FileState.PROCESSING) {
-    //   process.stdout.write(".");
-    //   // Sleep for 10 seconds
-    //   await new Promise((resolve) => setTimeout(resolve, 10_000));
-    //   // Fetch the file from the API again
-    //   file = await googleFileManager.getFile(uploadResult.file.name);
-    // }
-
-    // if (file.state === FileState.FAILED) {
-    //   throw new Error("PDF processing failed.");
-    // }
-
-    // // View the response.
-    // console.log(
-    //   `Uploaded file ${uploadResult.file.displayName} as: ${uploadResult.file.uri}`
-    // );
-
-    // const result = await model.generateContent([
-    //   "Tell me about this document.",
-    //   {
-    //     fileData: {
-    //       fileUri: uploadResult.file.uri,
-    //       mimeType: uploadResult.file.mimeType,
-    //     },
-    //   },
-    // ]);
-
-    res.status(200).json({answer: "foo"})
+    res.status(200).json({answer: result.response.text()})
 
   } catch (error) {
     if (error instanceof z.ZodError) {

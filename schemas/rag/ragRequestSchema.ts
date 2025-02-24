@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const RAGRequestSchema = z.object({
-  game: z.string(),
+  gameId: z.string(),
   question: z.string(),
 });
 
