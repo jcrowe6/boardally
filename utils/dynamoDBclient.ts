@@ -11,6 +11,7 @@ export interface RuleBookRecord {
   game_id: string;
   quality: number;
   s3_key: string;
+  file_size_in_bytes: number;
 }
 
 export class RuleBookNotFoundError extends Error {
@@ -20,7 +21,7 @@ export class RuleBookNotFoundError extends Error {
     }
 }
 
-export async function getBestRuleBookKey(gameId: string): Promise<string> {
+export async function getBestRuleBook(gameId: string): Promise<RuleBookRecord> {
   try {
     const command = new QueryCommand({
       TableName: process.env.RULEBOOK_TABLE!,
@@ -40,7 +41,7 @@ export async function getBestRuleBookKey(gameId: string): Promise<string> {
     }
 
     const bestRuleBook = response.Items[0] as RuleBookRecord;
-    return bestRuleBook.s3_key;
+    return bestRuleBook;
   } catch (error) {
     console.error('Error querying DynamoDB:', error);
     throw error;

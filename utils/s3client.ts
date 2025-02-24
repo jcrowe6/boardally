@@ -12,9 +12,8 @@ export async function getSecureS3Url(key: string) {
       Key: key,
     });
     
-    // Generate a pre-signed URL that expires in 1 hour
     const signedUrl = await getSignedUrl(s3Client, command, {
-      expiresIn: 3600,
+      expiresIn: 600,
     });
     
     return signedUrl;

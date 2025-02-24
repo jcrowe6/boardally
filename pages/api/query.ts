@@ -4,8 +4,9 @@ import { RAGRequestSchema } from "../../schemas/rag/ragRequestSchema";
 import { z } from "zod";
 import { GoogleAIFileManager, FileState } from "@google/generative-ai/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { resumableUpload } from "../../scripts/resumableUploadForGoogleAPIs"
-import { getBestRuleBookKey } from "../../utils/dynamoDBclient";
+import { resumableUpload, ResumableUploadOptions } from "../../scripts/resumableUploadForGoogleAPIs"
+import { getBestRuleBook } from "../../utils/dynamoDBclient";
+import { getSecureS3Url } from "../../utils/s3client";
 
 const getRequiredEnvVar = (name: string): string => {
   const value = process.env[name];
@@ -15,7 +16,7 @@ const getRequiredEnvVar = (name: string): string => {
   return value;
 };
 
-const requiredEnvVars = ['GEMINI_API_KEY'] as const;
+const requiredEnvVars = ['GEMINI_API_KEY', 'RESUMABLE_UPLOAD_URL'] as const;
 const env = Object.fromEntries(
   requiredEnvVars.map(key => [key, getRequiredEnvVar(key)])
 );
@@ -23,8 +24,6 @@ const env = Object.fromEntries(
 const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
 const googleFileManager = new GoogleAIFileManager(env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
-
 
 export default async function handler(
   req: NextApiRequest,
@@ -38,34 +37,39 @@ export default async function handler(
 
   try {
     // Validate request
-    const valid_request = RAGRequestSchema.parse(req.body);
-    
-    // Get best rulebook S3 key
-    const rbkey = await getBestRuleBookKey(valid_request.game)
+    const { game, question } = RAGRequestSchema.parse(req.body);
 
     // Check if already in google files
-    let files = await googleFileManager.listFiles()
-    console.log(files)
+    const files = await googleFileManager.listFiles()
+
+    const names = files.files ? files.files.map((file) => file.displayName) : []
     
+    const inFiles = names.includes(game)
+    
+    // Upload file
+    if (!inFiles) {
+      const { s3_key, file_size_in_bytes } = await getBestRuleBook(game)
 
-    // Todo: upload if not in google files, get file ref, prompt gemini with file ref
+      const s3Url = await getSecureS3Url(s3_key)
 
-    // const object = {
-    //   fileUrl: s3Url,
-    //   filePath: "",
-    //   accessToken: "",
-    //   resumableUrl: `https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=resumable&key=${env.GEMINI_API_KEY}`,
-    //   dataSize: 7300541,
-    //   metadata: { 
-    //     file: {
-    //       mimeType: "application/pdf",
-    //       displayName: "Sky Team",
-    //     }
-    //   }
-    // };
-    // const uploadResult = await resumableUpload(object).catch((err) =>
-    //   console.log(err)
-    // );
+      const options: ResumableUploadOptions = {
+        fileUrl: s3Url,
+        resumableUrl: env.RESUMABLE_UPLOAD_URL,
+        accessToken: env.GEMINI_API_KEY,
+        dataSize: file_size_in_bytes,
+        metadata: { 
+          file: {
+            mimeType: "application/pdf",
+            displayName: game,
+          }
+        }
+      };
+      
+      const uploadResult = await resumableUpload(options);
+      console.log(uploadResult)
+    }
+
+    
 
     // // The below script is from https://ai.google.dev/api/files#video
     // let file = await googleFileManager.getFile(uploadResult.file.name);
