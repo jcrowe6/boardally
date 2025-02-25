@@ -12,6 +12,7 @@
     "@aws-sdk/s3-request-presigner": "^3.750.0",
     "@aws-sdk/util-dynamodb": "^3.751.0",
     "@google/generative-ai": "^0.22.0",
+    "@headlessui/react": "^2.2.0",
     "@tailwindcss/postcss": "^4.0.0",
     "next": "latest",
     "react": "^18.2.0",

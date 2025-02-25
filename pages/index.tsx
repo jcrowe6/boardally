@@ -1,6 +1,5 @@
-import React, { FormEvent } from "react";
-
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+import React, { FormEvent, useState } from "react";
+import SearchBox from "../components/SearchBox";
 
 export default function Index() {
   const [answer, setAnswer] = React.useState("")
@@ -38,7 +37,7 @@ export default function Index() {
       <h1 className="text-6xl pb-12 font-title">Boardally</h1>
       <form onSubmit={onSubmit} className="flex flex-col items-center bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
         <div className="mb-4">
-          <input name="gameId" type="text" placeholder="Board game" className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"/>
+          <SearchBox></SearchBox>
         </div>
         <div className="mb-6">
           <input name="question" type="text" placeholder="What's your question?" className="w-xl shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"/>
