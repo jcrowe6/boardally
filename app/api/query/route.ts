@@ -1,12 +1,12 @@
-import type { NextApiRequest, NextApiResponse } from "next";
-import { RAGResponse } from "../../schemas/rag/ragResponseSchema";
-import { RAGRequestSchema } from "../../schemas/rag/ragRequestSchema";
+import { RAGResponse } from "../../../schemas/rag/ragResponseSchema";
+import { RAGRequestSchema } from "../../../schemas/rag/ragRequestSchema";
 import { z } from "zod";
 import { GoogleAIFileManager, FileState, FileMetadataResponse } from "@google/generative-ai/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { resumableUpload, ResumableUploadOptions } from "../../scripts/resumableUploadForGoogleAPIs"
-import { getBestRuleBook } from "../../utils/dynamoDBclient";
-import { getSecureS3Url } from "../../utils/s3client";
+import { resumableUpload, ResumableUploadOptions } from "../../../scripts/resumableUploadForGoogleAPIs"
+import { getBestRuleBook } from "../../../utils/dynamoDBclient";
+import { getSecureS3Url } from "../../../utils/s3client";
+import { NextRequest, NextResponse } from "next/server";
 
 const getRequiredEnvVar = (name: string): string => {
   const value = process.env[name];
@@ -32,19 +32,12 @@ function getPrompt(userQuestion: string) {
           you used to determine the answer.`;
 }
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse<RAGResponse>,
-) {
-  if (req.method != "POST") {
-    res.setHeader("Allow", ["POST"]);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
-    return;
-  }
-
+export async function POST( req: NextRequest ): Promise<NextResponse | undefined> {
   try {
+    const body = await req.json()
+
     // Validate request
-    const { "selectedGame[gameId]": gameId, question } = RAGRequestSchema.parse(req.body);
+    const { "selectedGame[gameId]": gameId, question } = RAGRequestSchema.parse(body);
 
     // Check if already in google files
     const files = await googleFileManager.listFiles()
@@ -87,15 +80,14 @@ export default async function handler(
       },
     ]);
 
-    res.status(200).json({answer: result.response.text()})
-
+    return NextResponse.json({answer: result.response.text()}, { status: 200 })
   } catch (error) {
     if (error instanceof z.ZodError) {
       console.error("Validation error:", error.errors);
-      return res.status(400).json({ answer: "Invalid data format" });
+      return NextResponse.json({ answer: "Invalid data format" }, { status: 400 });
     }
 
     console.error("Error in handler:", error);
-    res.status(500).json({ answer: "Internal server error" });
+    NextResponse.json({ answer: "Internal server error" }, { status: 500 });
   }
 }

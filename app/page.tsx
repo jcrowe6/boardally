@@ -1,7 +1,9 @@
+"use client"
+
 import React, { FormEvent, useState } from "react";
 import SearchBox from "../components/SearchBox";
 
-export default function Index() {
+export default function Home() {
   const [answer, setAnswer] = useState("");
   const [isError, setIsError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
