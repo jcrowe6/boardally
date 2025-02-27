@@ -34,9 +34,8 @@ export default function SearchBox() {
   };
 
   return (
-    <Combobox value={selectedGame} onChange={handleChange} onClose={() => setQuery('')}>
+    <Combobox name="selectedGame" value={selectedGame} onChange={handleChange} onClose={() => setQuery('')}>
       <ComboboxInput
-        aria-label="selectedGame"
         displayValue={(game: Game) => game?.displayName}
         onChange={(event) => setQuery(event.target.value)}
         className={clsx(

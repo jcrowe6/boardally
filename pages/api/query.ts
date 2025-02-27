@@ -44,16 +44,16 @@ export default async function handler(
 
   try {
     // Validate request
-    const { gameId, question } = RAGRequestSchema.parse(req.body);
+    const { "selectedGame[gameId]": gameId, question } = RAGRequestSchema.parse(req.body);
 
     // Check if already in google files
     const files = await googleFileManager.listFiles()
+
+    let fileMetadata: FileMetadataResponse | undefined;
     
-    if (!files.files) {
-      throw new Error("Error calling google files API")
+    if (files.files) {
+      fileMetadata = files.files.find(fileObj => fileObj.displayName === gameId)
     }
-    
-    let fileMetadata = files.files.find(fileObj => fileObj.displayName === gameId)
     
     if (!fileMetadata) { // Upload file
       const { s3_key, file_size_in_bytes } = await getBestRuleBook(gameId)
