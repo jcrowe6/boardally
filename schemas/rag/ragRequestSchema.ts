@@ -2,8 +2,8 @@ import { z } from "zod";
 
 export const RAGRequestSchema = z.object({
   "question": z.string(),
-  "selectedGame[displayName]": z.string(),
-  "selectedGame[gameId]": z.string()
+  "selectedGame[display_name]": z.string(),
+  "selectedGame[game_id]": z.string()
 });
 
 export type RAGRequest = z.infer<typeof RAGRequestSchema>;
