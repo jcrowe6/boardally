@@ -5,12 +5,12 @@ import SearchBox from "./components/SearchBox";
 
 export default function Home() {
     const [answer, setAnswer] = useState("");
-    const [isError, setIsError] = useState(false);
+    const [errorStatus, setErrorStatus] = useState<number | null>(null);
     const [isLoading, setIsLoading] = useState(false);
 
     async function onSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        setIsError(false);
+        setErrorStatus(null);
         setIsLoading(true);
 
         const formData = new FormData(event.currentTarget);
@@ -27,7 +27,7 @@ export default function Home() {
 
             if (!response.ok) {
                 console.error(response.statusText);
-                setIsError(true);
+                setErrorStatus(response.status);
                 return;
             }
 
@@ -35,10 +35,28 @@ export default function Home() {
             setAnswer(data["answer"]);
         } catch (error) {
             console.error(error);
-            setIsError(true);
+            setErrorStatus(500);
         } finally {
             setIsLoading(false);
         }
+    }
+
+    function getErrorMessage(status: number | null) {
+        if (status === 400 || status === 422) {
+            return "Sorry, we can't process that question.";
+        } else if (status === 429) {
+            return "You are out of free questions for now. Please try again later."
+        }
+        return "Sorry, there's been an error. Please try again.";
+    }
+
+    function getErrorStyle(status: number | null) {
+        if (status === 400 || status === 422) {
+            return "bg-yellow-600 text-yellow-100 border border-yellow-800";
+        } else if (status === 429) {
+            return "bg-purple-500 text-purple-100 border border-purple-400'"
+        }
+        return "bg-red-900 text-red-100 border border-red-800";
     }
 
     return (
@@ -81,13 +99,13 @@ export default function Home() {
                     </form>
                 </div>
 
-                {(answer || isError) && (
-                    <div className={`p-6 rounded-lg ${isError ? 'bg-red-900 bg-opacity-30 text-red-100 border border-red-800' : 'bg-purple-800 bg-opacity-30 text-purple-100 border border-purple-700'}`}>
+                {(answer || errorStatus) && (
+                    <div className={`p-6 rounded-lg ${errorStatus ? getErrorStyle(errorStatus) : 'bg-purple-800 bg-opacity-30 text-purple-100 border border-purple-700'}`}>
                         <h2 className="text-lg font-medium mb-2">
-                            {isError ? "Error" : "Answer"}
+                            {errorStatus ? "Error" : "Answer"}
                         </h2>
                         <p className="text-lg">
-                            {!isError ? answer : "Sorry, there's been an error. Please try again."}
+                            {errorStatus ? getErrorMessage(errorStatus) : answer}
                         </p>
                     </div>
                 )}
