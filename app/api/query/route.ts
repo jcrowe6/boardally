@@ -6,7 +6,7 @@ import { resumableUpload, ResumableUploadOptions } from "../../../scripts/resuma
 import { getBestRuleBook } from "../../../utils/dynamoDBclient";
 import { getSecureS3Url } from "../../../utils/s3client";
 import ShortUniqueId from "short-unique-id";
-import requestIp from 'request-ip'
+import { ContentValidationError, validateInputContent } from "../../../scripts/contentValidator";
 
 const getRequiredEnvVar = (name: string): string => {
     const value = process.env[name];
@@ -27,10 +27,8 @@ const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 const uid = new ShortUniqueId({ length: 10 });
 
-type QueryLog = {
-    request_id: string,
-    ip: any,
-    message: string
+function log(request_id: string, message: string) {
+    console.log({"request_id": request_id, "message": message})
 }
 
 function getPrompt(userQuestion: string) {
@@ -52,14 +50,14 @@ export async function POST(req: Request): Promise<Response | undefined> {
         } = RAGRequestSchema.parse(reqbody);
 
         const reqid = uid.rnd()
-        const ip = requestIp.getClientIp(req)
+        
+        const validation = validateInputContent(question)
 
-        const logq: QueryLog = {
-            request_id: reqid,
-            ip: ip,
-            message: `Query: ${gameName}, ${question}`
+        if (!validation.isValid) {
+            throw new ContentValidationError(JSON.stringify(validation))
         }
-        console.log(logq)
+
+        log(reqid, `Query: ${gameName}, ${question}`)
 
         // Check if already in google files
         // TODO: CACHE, with lower TTL
@@ -104,12 +102,7 @@ export async function POST(req: Request): Promise<Response | undefined> {
         ]);
         
         const answer = result.response.text() 
-        const loga: QueryLog = {
-            request_id: reqid,
-            ip: ip,
-            message: `Answer: ${answer}`
-        }
-        console.log(loga)
+        log(reqid, `Answer: ${answer}`)
         const response = new Response(JSON.stringify({ answer: answer }), {
             headers: { 'Content-Type': 'application/json' },
             status: 200
@@ -117,10 +110,19 @@ export async function POST(req: Request): Promise<Response | undefined> {
         return response
     } catch (error) {
         if (error instanceof z.ZodError) {
-            console.error("Validation error:", error.errors);
+            console.error("Zod validation error:", error.errors);
             const response = new Response(JSON.stringify({ answer: "Invalid data format" }), {
                 headers: { 'Content-Type': 'application/json' },
                 status: 400
+              });
+            return response
+        }
+
+        if (error instanceof ContentValidationError) {
+            console.error("Content validation error:", error.message);
+            const response = new Response(JSON.stringify({ answer: "Invalid content" }), {
+                headers: { 'Content-Type': 'application/json' },
+                status: 422
               });
             return response
         }
