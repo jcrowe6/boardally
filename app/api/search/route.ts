@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server';
 import { getAllValidGames } from '../../../utils/dynamoDBclient';
 import { Game } from '../../components/SearchBox';
 
@@ -59,6 +58,9 @@ export async function GET(request: Request) {
             ).slice(0, 20); // Limit to 20 results
         }
     }
-
-    return NextResponse.json(filteredGames);
+    const response = new Response(JSON.stringify(filteredGames), {
+        headers: { 'Content-Type': 'application/json' },
+        status: 200
+      });
+    return response
 }

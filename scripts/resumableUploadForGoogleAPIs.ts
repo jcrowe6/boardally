@@ -85,7 +85,7 @@ export function resumableUpload(options: ResumableUploadOptions) : Promise<Uploa
               startByte + dataChunk.length - 1
             } for ${dataSize}`
           );
-          const res3 = await fetch(location, {
+          const res3 = await fetch(location!, {
             method: "PUT",
             headers: {
               "Content-Range": `bytes ${startByte}-${
@@ -137,7 +137,7 @@ export function resumableUpload(options: ResumableUploadOptions) : Promise<Uploa
               startByte + dataChunk.length - 1
             } for ${dataSize}`
           );
-          const res4 = await fetch(location, {
+          const res4 = await fetch(location!, {
             method: "PUT",
             headers: {
               "Content-Range": `bytes ${startByte}-${

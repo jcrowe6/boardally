@@ -32,10 +32,10 @@ function getPrompt(userQuestion: string) {
 
 export async function POST(req: Request): Promise<Response | undefined> {
     try {
-        const body = await req.json()
+        const reqbody = await req.json()
 
         // Validate request
-        const { "selectedGame[game_id]": gameId, question } = RAGRequestSchema.parse(body);
+        const { "selectedGame[game_id]": gameId, question } = RAGRequestSchema.parse(reqbody);
 
         // Check if already in google files
         // TODO: CACHE, with lower TTL
@@ -78,15 +78,27 @@ export async function POST(req: Request): Promise<Response | undefined> {
                 },
             },
         ]);
-
-        return Response.json({ answer: result.response.text() }, { status: 200 })
+        
+        const response = new Response(JSON.stringify({ answer: result.response.text() }), {
+            headers: { 'Content-Type': 'application/json' },
+            status: 200
+          });
+        return response
     } catch (error) {
         if (error instanceof z.ZodError) {
             console.error("Validation error:", error.errors);
-            return Response.json({ answer: "Invalid data format" }, { status: 400 });
+            const response = new Response(JSON.stringify({ answer: "Invalid data format" }), {
+                headers: { 'Content-Type': 'application/json' },
+                status: 400
+              });
+            return response
         }
 
         console.error("Error in handler:", error);
-        Response.json({ answer: "Internal server error" }, { status: 500 });
+        const response = new Response(JSON.stringify({ answer: "Internal server error" }), {
+            headers: { 'Content-Type': 'application/json' },
+            status: 500
+          });
+        return response
     }
 }
