@@ -38,6 +38,7 @@ export async function POST(req: Request): Promise<Response | undefined> {
         const { "selectedGame[game_id]": gameId, question } = RAGRequestSchema.parse(body);
 
         // Check if already in google files
+        // TODO: CACHE, with lower TTL
         const files = await googleFileManager.listFiles()
 
         let fileMetadata: FileMetadataResponse | undefined;
