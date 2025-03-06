@@ -5,6 +5,8 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { resumableUpload, ResumableUploadOptions } from "../../../scripts/resumableUploadForGoogleAPIs"
 import { getBestRuleBook } from "../../../utils/dynamoDBclient";
 import { getSecureS3Url } from "../../../utils/s3client";
+import ShortUniqueId from "short-unique-id";
+import requestIp from 'request-ip'
 
 const getRequiredEnvVar = (name: string): string => {
     const value = process.env[name];
@@ -23,6 +25,14 @@ const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
 const googleFileManager = new GoogleAIFileManager(env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
+const uid = new ShortUniqueId({ length: 10 });
+
+type QueryLog = {
+    request_id: string,
+    ip: any,
+    message: string
+}
+
 function getPrompt(userQuestion: string) {
     return `User question: "${userQuestion}"
           Instruction: Provide a concise answer to the user's rules question, 
@@ -35,7 +45,21 @@ export async function POST(req: Request): Promise<Response | undefined> {
         const reqbody = await req.json()
 
         // Validate request
-        const { "selectedGame[game_id]": gameId, question } = RAGRequestSchema.parse(reqbody);
+        const { 
+            "selectedGame[game_id]": gameId, 
+            "selectedGame[display_name]": gameName, 
+            question 
+        } = RAGRequestSchema.parse(reqbody);
+
+        const reqid = uid.rnd()
+        const ip = requestIp.getClientIp(req)
+
+        const logq: QueryLog = {
+            request_id: reqid,
+            ip: ip,
+            message: `Query: ${gameName}, ${question}`
+        }
+        console.log(logq)
 
         // Check if already in google files
         // TODO: CACHE, with lower TTL
@@ -79,7 +103,14 @@ export async function POST(req: Request): Promise<Response | undefined> {
             },
         ]);
         
-        const response = new Response(JSON.stringify({ answer: result.response.text() }), {
+        const answer = result.response.text() 
+        const loga: QueryLog = {
+            request_id: reqid,
+            ip: ip,
+            message: `Answer: ${answer}`
+        }
+        console.log(loga)
+        const response = new Response(JSON.stringify({ answer: answer }), {
             headers: { 'Content-Type': 'application/json' },
             status: 200
           });

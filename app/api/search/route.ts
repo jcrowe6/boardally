@@ -19,7 +19,6 @@ export async function GET(request: Request) {
         if (inMemoryCache.allGames &&
             (Date.now() - (inMemoryCache.timestamp || 0)) < CACHE_TTL * 1000) {
             allGames = inMemoryCache.allGames;
-            console.log('Using in-memory cache');
         }
     } catch (error) {
         console.error('Cache error:', error);
@@ -27,7 +26,7 @@ export async function GET(request: Request) {
 
     // If not in cache, fetch from database
     if (!allGames) {
-        console.log('Cache miss, fetching from database');
+        console.log('Refresh search cache');
 
         // Query DynamoDB
         allGames = await getAllValidGames();
