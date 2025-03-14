@@ -84,7 +84,7 @@ export default function Home() {
                         <button
                             type="submit"
                             disabled={isLoading}
-                            className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 px-6 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 transition-all transform hover:scale-105"
+                            className="btn-primary"
                         >
                             {isLoading ? (
                                 <span className="flex items-center justify-center">
