@@ -1,1 +1,42 @@
 @import "tailwindcss";
+
+@theme {
+    /* Base Theme */
+    --color-app-background: #281633;
+
+    /* UI Component Colors */
+    --color-primary-container: #6b21a8; /* panels, cards */
+    --color-primary-container-border: #7e22ce;
+    --color-primary-container-opacity: 0.3;
+
+    /* Text Colors */
+    --color-primary-text: #f3e8ff;
+    --color-placeholder-text: #d8b4fe;
+
+    /* Form Elements */
+    --color-input-background: #581c87;
+    --color-input-background-opacity: 0.5;
+    --color-input-border: #9333ea;
+    --color-input-focus-ring: #c084fc;
+    --color-button-background: #9335e3;
+
+    /* Status & Feedback Colors */
+    --color-critical-background: #7f1d1d;
+    --color-critical-text: #fee2e2;
+    --color-critical-border: #991b1b;
+
+    --color-warning-background: #9a3412;
+    --color-warning-text: #fef9c3;
+    --color-warning-border: #854d0e;
+
+    --color-notice-background: #a855f7;
+    --color-notice-text: #f3e8ff;
+    --color-notice-border: #a78bfa;
+
+    /* Utility */
+    --color-white: #ffffff;
+    --opacity-light: 0.25;
+    --opacity-medium: 0.5;
+    --opacity-semi: 0.75;
+    --opacity-overlay: 0.3;
+}
