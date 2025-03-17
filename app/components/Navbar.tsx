@@ -1,5 +1,6 @@
 import Link from "next/link";
 import SignInButton from "./SignInButton";
+import SignOutButton from "./SignOutButton";
 
 export default function Navbar() {
     return (
@@ -11,6 +12,7 @@ export default function Navbar() {
             <Link href="/about" className="text-primary-text">About</Link>
             <Link href="/contact" className="text-primary-text">Contact</Link>
             <SignInButton/>
+            <SignOutButton/>
           </div>
         </div>
       </nav>
