@@ -10,8 +10,9 @@ const providerLogos = {
 };
 
 export default async function SignInPage(props: {
-  searchParams: { callbackUrl: string | undefined };
+  searchParams: Promise<{ callbackUrl: string | undefined }>;
 }) {
+  const searchParams = await props.searchParams
   return (
     <div className="bg-app-background min-h-screen bg-opacity-90 flex justify-center items-center flex-col px-4 py-12">
       <div className="w-full max-w-md">
@@ -27,7 +28,7 @@ export default async function SignInPage(props: {
                 "use server";
                 try {
                   await signIn(provider.id, {
-                    redirectTo: props.searchParams?.callbackUrl ?? "",
+                    redirectTo: searchParams?.callbackUrl ?? "",
                   });
                 } catch (error) {
                   // Signin can fail for a number of reasons, such as the user
