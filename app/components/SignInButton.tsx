@@ -1,15 +1,15 @@
 import { signIn } from "../../auth"
  
-export default function SignInGoogle() {
+export default function SignInButton() {
   return (
     <div className="inline-block">
     <form
       action={async () => {
         "use server"
-        await signIn("google")
+        await signIn()
       }}
     >
-      <button className="text-primary-text cursor-pointer" type="submit">Sign in with Google</button>
+      <button className="text-primary-text cursor-pointer" type="submit">Sign in</button>
     </form>
     </div>
   )
