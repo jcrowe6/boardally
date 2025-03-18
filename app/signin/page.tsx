@@ -3,6 +3,7 @@ import { signIn, auth, providerMap } from "../../auth";
 import { AuthError } from "next-auth";
 import Image from "next/image";
 import googleIcon from "../../images/google-logo.svg"
+import { cookies } from "next/headers";
 
 // Define provider logo mapping
 const providerLogos = {
@@ -13,6 +14,7 @@ export default async function SignInPage(props: {
   searchParams: Promise<{ callbackUrl: string | undefined }>;
 }) {
   const searchParams = await props.searchParams
+  const csrfToken = (await cookies()).get("authjs.csrf-token")?.value ?? "";
   return (
     <div className="bg-app-background min-h-screen bg-opacity-90 flex justify-center items-center flex-col px-4 py-12">
       <div className="w-full max-w-md">
@@ -46,6 +48,7 @@ export default async function SignInPage(props: {
                 }
               }}
             >
+              <input type="hidden" name="csrfToken" value={csrfToken}/>
               <button 
                 type="submit" 
                 className="bg-button-background text-white font-medium py-3 px-6 rounded-md focus:outline-none focus:ring-2 focus:ring-opacity-50 transition-all transform hover:scale-105 w-full flex items-center justify-center"
