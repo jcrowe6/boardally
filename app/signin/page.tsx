@@ -14,7 +14,8 @@ export default async function SignInPage(props: {
   searchParams: Promise<{ callbackUrl: string | undefined }>;
 }) {
   const searchParams = await props.searchParams
-  const csrfToken = (await cookies()).get("authjs.csrf-token")?.value ?? "";
+  const cookieStore = await cookies()
+  const csrfToken = cookieStore.get("authjs.csrf-token")?.value ?? "";
   return (
     <div className="bg-app-background min-h-screen bg-opacity-90 flex justify-center items-center flex-col px-4 py-12">
       <div className="w-full max-w-md">
@@ -31,6 +32,7 @@ export default async function SignInPage(props: {
                 try {
                   await signIn(provider.id, {
                     redirectTo: searchParams?.callbackUrl ?? "",
+                    csrfToken: csrfToken ?? ""
                   });
                 } catch (error) {
                   // Signin can fail for a number of reasons, such as the user
