@@ -1,9 +1,7 @@
-import { signIn, auth, providerMap } from "../../auth";
-import { AuthError } from "next-auth";
+import { signIn, providerMap } from "../../../auth";
 import Image from "next/image";
-import googleIcon from "../../images/google-logo.svg"
+import googleIcon from "../../../images/google-logo.svg"
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 
 // Define provider logo mapping
 const providerLogos = {
@@ -13,9 +11,9 @@ const providerLogos = {
 export default async function SignInPage(props: {
   searchParams: Promise<{ callbackUrl: string | undefined }>;
 }) {
-  // const searchParams = await props.searchParams
-  // const cookieStore = await cookies()
-  // const csrfToken = cookieStore.get("authjs.csrf-token")?.value ?? "";
+  const searchParams = await props.searchParams
+  const cookieStore = await cookies()
+  const csrfToken = cookieStore.get("authjs.csrf-token")?.value ?? "";
   return (
     <div className="bg-app-background min-h-screen bg-opacity-90 flex justify-center items-center flex-col px-4 py-12">
       <div className="w-full max-w-md">
@@ -30,7 +28,9 @@ export default async function SignInPage(props: {
               action={async () => {
                 "use server";
                 try {
-                  await redirect("/signin");
+                  await signIn(provider.id, {
+                    redirectTo: searchParams?.callbackUrl ?? ""
+                  });
                 } catch (error) {
                   // Signin can fail for a number of reasons, such as the user
                   // not existing, or the user not having the correct role.
