@@ -38,5 +38,5 @@ const client = DynamoDBDocument.from(new DynamoDB(config), {
  
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers,
-  adapter: DynamoDBAdapter(client, { tableName: 'boardally-next-auth-devl' })
+  adapter: DynamoDBAdapter(client, { tableName: process.env.NEXT_AUTH_TABLE_NAME })
 })
