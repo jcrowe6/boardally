@@ -7,6 +7,8 @@ import { getBestRuleBook } from "../../../utils/rulebookDDBClient";
 import { getSecureS3Url } from "../../../utils/s3client";
 import ShortUniqueId from "short-unique-id";
 import { ContentValidationError, validateInputContent } from "../../../scripts/contentValidator";
+import { auth } from "auth";
+import { getEndOfDay, getUserRequestInfo, updateUserRequestCount } from "utils/userDDBClient";
 
 const getRequiredEnvVar = (name: string): string => {
     const value = process.env[name];
@@ -28,7 +30,7 @@ const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 const uid = new ShortUniqueId({ length: 10 });
 
 function log(request_id: string, message: string) {
-    console.log({"request_id": request_id, "message": message})
+    console.log({ "request_id": request_id, "message": message })
 }
 
 function getPrompt(userQuestion: string) {
@@ -39,18 +41,48 @@ function getPrompt(userQuestion: string) {
 }
 
 export async function POST(req: Request): Promise<Response | undefined> {
+    const session = await auth()
+    // Rate limiting for logged-in users
+    if (session) {
+        const userId = session.user?.id!!;
+        const userInfo = await getUserRequestInfo(userId);
+        console.log(`User ${userId} has ${userInfo.requestCount} requests today`)
+        // Check if request count needs to be reset (new day)
+        const now = new Date();
+        const resetTime = new Date(userInfo.resetTimestamp);
+
+        if (now.getTime() > resetTime.getTime()) {
+            // Reset count for new day
+            await updateUserRequestCount(userId, 1, getEndOfDay(now));
+        } else {
+            // Check if user has exceeded their daily limit
+            const requestLimit = userInfo.tier === "paid" ? 100 : 5;
+
+            if (userInfo.requestCount >= requestLimit) {
+                console.log(`User ${userId} hit their daily limit`)
+                const response = new Response(JSON.stringify({ answer: "Daily request limit reached" }), {
+                    headers: { 'Content-Type': 'application/json' },
+                    status: 429
+                });
+                return response
+            }
+
+            // Increment request count
+            await updateUserRequestCount(userId, userInfo.requestCount + 1, resetTime);
+        }
+    }
     try {
         const reqbody = await req.json()
 
         // Validate request
-        const { 
-            "selectedGame[game_id]": gameId, 
-            "selectedGame[display_name]": gameName, 
-            question 
+        const {
+            "selectedGame[game_id]": gameId,
+            "selectedGame[display_name]": gameName,
+            question
         } = RAGRequestSchema.parse(reqbody);
 
         const reqid = uid.rnd()
-        
+
         const validation = validateInputContent(question)
 
         if (!validation.isValid) {
@@ -100,13 +132,13 @@ export async function POST(req: Request): Promise<Response | undefined> {
                 },
             },
         ]);
-        
-        const answer = result.response.text() 
+
+        const answer = result.response.text()
         log(reqid, `Answer: ${answer}`)
         const response = new Response(JSON.stringify({ answer: answer }), {
             headers: { 'Content-Type': 'application/json' },
             status: 200
-          });
+        });
         return response
     } catch (error) {
         if (error instanceof z.ZodError) {
@@ -114,7 +146,7 @@ export async function POST(req: Request): Promise<Response | undefined> {
             const response = new Response(JSON.stringify({ answer: "Invalid data format" }), {
                 headers: { 'Content-Type': 'application/json' },
                 status: 400
-              });
+            });
             return response
         }
 
@@ -123,7 +155,7 @@ export async function POST(req: Request): Promise<Response | undefined> {
             const response = new Response(JSON.stringify({ answer: "Invalid content" }), {
                 headers: { 'Content-Type': 'application/json' },
                 status: 422
-              });
+            });
             return response
         }
 
@@ -131,7 +163,7 @@ export async function POST(req: Request): Promise<Response | undefined> {
         const response = new Response(JSON.stringify({ answer: "Internal server error" }), {
             headers: { 'Content-Type': 'application/json' },
             status: 500
-          });
+        });
         return response
     }
 }
