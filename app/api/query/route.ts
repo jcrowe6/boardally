@@ -56,7 +56,7 @@ export async function POST(req: Request): Promise<Response | undefined> {
             await updateUserRequestCount(userId, 1, getEndOfDay(now));
         } else {
             // Check if user has exceeded their daily limit
-            const requestLimit = userInfo.tier === "paid" ? 100 : 10;
+            const requestLimit = userInfo.tier === "paid" ? 100 : 5;
 
             if (userInfo.requestCount >= requestLimit) {
                 console.log(`User ${userId} hit their daily limit`)
