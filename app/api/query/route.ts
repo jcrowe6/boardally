@@ -3,7 +3,7 @@ import { z } from "zod";
 import { GoogleAIFileManager, FileMetadataResponse } from "@google/generative-ai/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { resumableUpload, ResumableUploadOptions } from "../../../scripts/resumableUploadForGoogleAPIs"
-import { getBestRuleBook } from "../../../utils/dynamoDBclient";
+import { getBestRuleBook } from "../../../utils/rulebookDDBClient";
 import { getSecureS3Url } from "../../../utils/s3client";
 import ShortUniqueId from "short-unique-id";
 import { ContentValidationError, validateInputContent } from "../../../scripts/contentValidator";
