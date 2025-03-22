@@ -3,10 +3,12 @@
 import { FormEvent, useState } from "react";
 import SearchBox from "./SearchBox";
 
-export default function QueryBox() {
+export default function QueryBox({userUsage}) {
     const [answer, setAnswer] = useState("");
     const [errorStatus, setErrorStatus] = useState<number | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+
+    
 
     async function onSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -32,8 +34,6 @@ export default function QueryBox() {
 
             const data = await response.json();
             setAnswer(data["answer"]);
-
-            // onUsageUpdate(1);
         } catch (error) {
             console.error(error);
             setErrorStatus(500);
@@ -62,6 +62,32 @@ export default function QueryBox() {
 
     return (
         <>
+            {userUsage &&
+                <div className="mb-4 rounded-lg p-3 bg-primary-container bg-opacity-medium border border-primary-container-border">
+                    <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center">
+                            <span className="font-medium mr-2">
+                                {`${userUsage.tier.charAt(0).toUpperCase() + userUsage.tier.slice(1)} Account:`}
+                            </span>
+                            <span>
+                                {userUsage.requestCount} / {userUsage.requestLimit} requests used today
+                            </span>
+                        </div>
+                        {userUsage.tier === "free" && (
+                            <a href="/upgrade" className="text-button-background hover:underline font-medium">
+                                Upgrade
+                            </a>
+                        )}
+                    </div>
+
+                    <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2 overflow-hidden">
+                        <div
+                            className="bg-button-background h-1.5 rounded-full"
+                            style={{ width: `${Math.min(100, (userUsage.requestCount / userUsage.requestLimit) * 100)}%` }}
+                        ></div>
+                    </div>
+                </div>
+            }
             <div className="bg-primary-container bg-opacity-overlay backdrop-blur-sm rounded-lg shadow-lg p-6 mb-6 border border-primary-container-border">
                 <form onSubmit={onSubmit} className="flex flex-col">
                     <div className="mb-5">

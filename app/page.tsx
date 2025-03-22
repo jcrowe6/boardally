@@ -1,10 +1,9 @@
 import { SessionProvider } from "next-auth/react"
-import { fetchUserUsage } from "./actions/usage";
-import UsageBar from "./components/UsageBar";
 import QueryBox from "./components/QueryBox";
+import { fetchUserUsage } from "./actions/usage";
 
 export default async function Home() {
-
+    const userUsage = await fetchUserUsage()
     return (
         <SessionProvider>
             <div className="bg-app-background min-h-screen bg-opacity-90 flex md:justify-center items-center flex-col px-4">
@@ -13,8 +12,7 @@ export default async function Home() {
                         Boardally
                     </h1>
 
-                    <UsageBar />
-                    <QueryBox />
+                    <QueryBox userUsage={userUsage}/>
 
                 </div>
             </div>
