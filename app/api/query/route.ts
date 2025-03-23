@@ -9,6 +9,7 @@ import ShortUniqueId from "short-unique-id";
 import { ContentValidationError, validateInputContent } from "../../../scripts/contentValidator";
 import { auth } from "auth";
 import { getEndOfDay, getUserRequestInfo, tierLimits, updateUserRequestCount } from "utils/userDDBClient";
+import { ipAddress } from "@vercel/functions";
 
 const getRequiredEnvVar = (name: string): string => {
     const value = process.env[name];
@@ -70,6 +71,9 @@ export async function POST(req: Request): Promise<Response | undefined> {
             // Increment request count
             await updateUserRequestCount(userId, userInfo.requestCount + 1, resetTime);
         }
+    } else {
+        const ip = ipAddress(req)
+        console.log(ip)
     }
     try {
         const reqbody = await req.json()
