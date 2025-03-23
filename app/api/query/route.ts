@@ -106,7 +106,7 @@ export async function POST(req: Request): Promise<Response | undefined> {
                 return response
             }
 
-            await updateAnonymousRequestCount(anonKey, anonInfo.requestCount + 1, anonInfo.resetTimestamp);
+            await updateAnonymousRequestCount(anonKey, anonInfo.requestCount + 1, resetTime);
         }
 
     }
