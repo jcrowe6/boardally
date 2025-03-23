@@ -8,7 +8,7 @@ import { getSecureS3Url } from "../../../utils/s3client";
 import ShortUniqueId from "short-unique-id";
 import { ContentValidationError, validateInputContent } from "../../../scripts/contentValidator";
 import { auth } from "auth";
-import { getEndOfDay, getUserRequestInfo, updateUserRequestCount } from "utils/userDDBClient";
+import { getEndOfDay, getUserRequestInfo, tierLimits, updateUserRequestCount } from "utils/userDDBClient";
 
 const getRequiredEnvVar = (name: string): string => {
     const value = process.env[name];
@@ -56,7 +56,7 @@ export async function POST(req: Request): Promise<Response | undefined> {
             await updateUserRequestCount(userId, 1, getEndOfDay(now));
         } else {
             // Check if user has exceeded their daily limit
-            const requestLimit = userInfo.tier === "paid" ? 100 : 10;
+            const requestLimit = tierLimits[userInfo.tier]
 
             if (userInfo.requestCount >= requestLimit) {
                 console.log(`User ${userId} hit their daily limit`)

@@ -1,7 +1,7 @@
 'use server'
 
 import { auth } from "auth";
-import { getUserRequestInfo } from "utils/userDDBClient";
+import { getUserRequestInfo, tierLimits } from "utils/userDDBClient";
 
 export async function fetchUserUsage() {
     const session = await auth();
@@ -18,13 +18,13 @@ export async function fetchUserUsage() {
             return {
                 requestCount: 0,
                 tier: userInfo.tier,
-                requestLimit: userInfo.tier === "paid" ? 100 : 10
+                requestLimit: tierLimits[userInfo.tier]
             };
         } else {
             return {
                 requestCount: userInfo.requestCount,
                 tier: userInfo.tier,
-                requestLimit: userInfo.tier === "paid" ? 100 : 10
+                requestLimit: tierLimits[userInfo.tier]
             };
         }
     } catch (error) {

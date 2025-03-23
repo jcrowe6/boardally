@@ -7,6 +7,10 @@ const dynamoDB = new DynamoDBClient({
 
 const docClient = DynamoDBDocumentClient.from(dynamoDB);
 
+export const tierLimits = {
+    free: 5,
+    paid: 100
+}
 
 export async function getUserRequestInfo(userId: string) {
     const getUserCommand = new GetCommand({
