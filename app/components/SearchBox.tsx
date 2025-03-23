@@ -59,6 +59,7 @@ export default function SearchBox() {
         <ComboboxInput
           displayValue={(game: Game) => game?.display_name}
           placeholder="What game are you playing?"
+          autoComplete='off'
           onChange={(event) => setQuery(event.target.value)}
           className={clsx(
             'w-full h-12 rounded-lg border-none bg-gray-800 text-white px-4 text-base',

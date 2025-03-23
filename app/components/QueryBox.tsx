@@ -104,6 +104,7 @@ export default function QueryBox({userUsage}) {
                             name="question"
                             type="text"
                             placeholder="What's your question?"
+                            autoComplete="off"
                             className="w-full px-4 py-3 rounded-md border border-input-border bg-input-background bg-opacity-medium focus:outline-none focus:ring-2 focus:ring-input-focus-ring focus:border-transparent transition-all text-primary-text placeholder-placeholder-text"
                         />
                     </div>

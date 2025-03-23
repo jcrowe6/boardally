@@ -12,6 +12,10 @@ export const tierLimits = {
     paid: 100
 }
 
+// Right now this function is what creates the user in the User table
+// this gets called in the getUserRequestInfo action on the homepage load, so the record should be there 
+// when the user actually makes their first request
+// but isn't good design. should probably create the user in Users when they first sign in with Auth.js TODO
 export async function getUserRequestInfo(userId: string) {
     const getUserCommand = new GetCommand({
         TableName: process.env.USERS_TABLE,
