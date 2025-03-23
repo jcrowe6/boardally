@@ -10,12 +10,23 @@ export async function fetchUserUsage() {
     }
 
     try {
-        const response = await getUserRequestInfo(session.user.id);
-        return {
-            requestCount: response.requestCount,
-            tier: response.tier,
-            requestLimit: response.tier === "paid" ? 100 : 10
-        };
+        const userInfo = await getUserRequestInfo(session.user.id);
+        const now = new Date();
+        const resetTime = new Date(userInfo.resetTimestamp);
+        if (now.getTime() > resetTime.getTime()) {
+            // New day, show user 0 (it will reset on the backend when they send a request)
+            return {
+                requestCount: 0,
+                tier: userInfo.tier,
+                requestLimit: userInfo.tier === "paid" ? 100 : 5
+            };
+        } else {
+            return {
+                requestCount: userInfo.requestCount,
+                tier: userInfo.tier,
+                requestLimit: userInfo.tier === "paid" ? 100 : 5
+            };
+        }
     } catch (error) {
         console.error("Error fetching usage data:", error);
         return null;
