@@ -8,11 +8,13 @@ export default function QueryBox({userUsage}) {
     const [errorStatus, setErrorStatus] = useState<number | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [userRequestsToday, setUserRequestsToday] = useState(userUsage?.requestCount)    
+    const [showAnswer, setShowAnswer] = useState(false);
 
     async function onSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         setErrorStatus(null);
         setIsLoading(true);
+        setShowAnswer(false);
 
         const formData = new FormData(event.currentTarget);
         const formDataJson = JSON.stringify(Object.fromEntries(formData));
@@ -28,15 +30,18 @@ export default function QueryBox({userUsage}) {
 
             if (!response.ok) {
                 setErrorStatus(response.status);
+                setTimeout(() => setShowAnswer(true), 100);
                 return;
             }
 
             const data = await response.json();
             setAnswer(data["answer"]);
-            setUserRequestsToday(userRequestsToday+1)
+            setUserRequestsToday(userRequestsToday+1);
+            setTimeout(() => setShowAnswer(true), 100);
         } catch (error) {
             console.error(error);
             setErrorStatus(500);
+            setTimeout(() => setShowAnswer(true), 100);
         } finally {
             setIsLoading(false);
         }
@@ -123,7 +128,17 @@ export default function QueryBox({userUsage}) {
             </div>
 
             {(answer || errorStatus) && (
-                <div className={`p-6 rounded-lg ${errorStatus ? getErrorStyle(errorStatus) : 'bg-primary-container bg-opacity-overlay text-primary-text border border-primary-container-border'}`}>
+                <div 
+                    className={`p-6 rounded-lg transform transition-all duration-500 ease-out ${
+                        showAnswer 
+                            ? 'opacity-100 translate-y-0' 
+                            : 'opacity-0 translate-y-4'
+                    } ${
+                        errorStatus 
+                            ? getErrorStyle(errorStatus) 
+                            : 'bg-primary-container bg-opacity-overlay text-primary-text border border-primary-container-border'
+                    }`}
+                >
                     <h2 className="text-lg font-medium mb-2">
                         {errorStatus ? "Error" : "Answer"}
                     </h2>

@@ -18,13 +18,13 @@ export async function fetchUserUsage() {
             return {
                 requestCount: 0,
                 tier: userInfo.tier,
-                requestLimit: userInfo.tier === "paid" ? 100 : 5
+                requestLimit: userInfo.tier === "paid" ? 100 : 10
             };
         } else {
             return {
                 requestCount: userInfo.requestCount,
                 tier: userInfo.tier,
-                requestLimit: userInfo.tier === "paid" ? 100 : 5
+                requestLimit: userInfo.tier === "paid" ? 100 : 10
             };
         }
     } catch (error) {
