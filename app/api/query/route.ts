@@ -10,6 +10,9 @@ import { ContentValidationError, validateInputContent } from "../../../scripts/c
 import { auth } from "auth";
 import { getEndOfDay, getUserRequestInfo, tierLimits, updateUserRequestCount } from "utils/userDDBClient";
 import { ipAddress } from "@vercel/functions";
+import { cookies } from "next/headers";
+import { nanoid } from "nanoid";
+import { getAnonymousRequestCount, updateAnonymousRequestCount } from "utils/anonymousDDBClient";
 
 const getRequiredEnvVar = (name: string): string => {
     const value = process.env[name];
@@ -52,6 +55,8 @@ export async function POST(req: Request): Promise<Response | undefined> {
         const now = new Date();
         const resetTime = new Date(userInfo.resetTimestamp);
 
+        // This logic is what actually resets the user's request count on a new day
+        // TODO consider moving this elsewhere?
         if (now.getTime() > resetTime.getTime()) {
             // Reset count for new day
             await updateUserRequestCount(userId, 1, getEndOfDay(now));
@@ -72,8 +77,38 @@ export async function POST(req: Request): Promise<Response | undefined> {
             await updateUserRequestCount(userId, userInfo.requestCount + 1, resetTime);
         }
     } else {
-        const ip = ipAddress(req)
-        console.log(ip)
+        const clientIp = ipAddress(req)
+        const cookieStore = await cookies()
+        let anonymousId = cookieStore.get('anonymousId')?.value
+        if (!anonymousId) {
+            anonymousId = nanoid();
+            cookieStore.set('anonymousId', anonymousId)
+        }
+        const anonKey = `${clientIp}:${anonymousId}`
+
+        const anonInfo = await getAnonymousRequestCount(anonKey);
+
+        // Reset logic - similar to authenticated users
+        const now = new Date();
+        const resetTime = new Date(anonInfo.resetTimestamp);
+
+        if (now.getTime() > resetTime.getTime()) {
+            await updateAnonymousRequestCount(anonKey, 1, getEndOfDay(now));
+        } else {
+            const anonLimit = 1; 
+
+            if (anonInfo.requestCount >= anonLimit) {
+                console.log(`Anon ${anonKey} hit their daily limit`)
+                const response = new Response(JSON.stringify({ answer: "Daily request limit reached" }), {
+                    headers: { 'Content-Type': 'application/json' },
+                    status: 429
+                });
+                return response
+            }
+
+            await updateAnonymousRequestCount(anonKey, anonInfo.requestCount + 1, anonInfo.resetTimestamp);
+        }
+
     }
     try {
         const reqbody = await req.json()
