@@ -1,4 +1,4 @@
-import { getAllValidGames } from '../../../utils/dynamoDBclient';
+import { getAllValidGames } from '../../../utils/rulebookDDBClient';
 import { Game } from '../../components/SearchBox';
 
 const CACHE_TTL = 3600; // Cache TTL in seconds (1 hour)
