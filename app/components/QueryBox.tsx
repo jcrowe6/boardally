@@ -4,11 +4,11 @@ import { FormEvent, useState } from "react";
 import SearchBox from "./SearchBox";
 
 export default function QueryBox({userUsage}) {
-    const [answer, setAnswer] = useState("");
-    const [errorStatus, setErrorStatus] = useState<number | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
+    const [answer, setAnswer] = useState("")
+    const [errorStatus, setErrorStatus] = useState<number | null>(null)
+    const [isLoading, setIsLoading] = useState(false)
     const [userRequestsToday, setUserRequestsToday] = useState(userUsage?.requestCount)    
-    const [showAnswer, setShowAnswer] = useState(false);
+    const [showAnswer, setShowAnswer] = useState(false)
 
     async function onSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
