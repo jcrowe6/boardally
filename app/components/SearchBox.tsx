@@ -76,10 +76,10 @@ export default function SearchBox() {
         )}
       </div>
       <ComboboxOptions
-        anchor="bottom"
+        anchor = "bottom"
         transition
         className={clsx(
-          'w-[var(--input-width)] rounded-xl border border-white/10 bg-gray-900 p-1 [--anchor-gap:var(--spacing-1)] empty:invisible',
+          'w-[var(--input-width)] rounded-xl border border-white/10 bg-gray-900 p-1 [--anchor-gap:4px] empty:invisible',
           'transition duration-100 ease-in data-[leave]:data-[closed]:opacity-0',
           'shadow-lg shadow-black/20'
         )}

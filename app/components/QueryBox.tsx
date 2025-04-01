@@ -4,11 +4,11 @@ import { FormEvent, useState } from "react";
 import SearchBox from "./SearchBox";
 
 export default function QueryBox({userUsage}) {
-    const [answer, setAnswer] = useState("");
-    const [errorStatus, setErrorStatus] = useState<number | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
+    const [answer, setAnswer] = useState("")
+    const [errorStatus, setErrorStatus] = useState<number | null>(null)
+    const [isLoading, setIsLoading] = useState(false)
     const [userRequestsToday, setUserRequestsToday] = useState(userUsage?.requestCount)    
-    const [showAnswer, setShowAnswer] = useState(false);
+    const [showAnswer, setShowAnswer] = useState(false)
 
     async function onSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -51,9 +51,14 @@ export default function QueryBox({userUsage}) {
         if (status === 400 || status === 422) {
             return "Sorry, we can't process that question.";
         } else if (status === 429) {
-            return "You are out of free questions for now. Please try again later."
+            if (!userUsage) {
+                return "Request limit reached. Consider signing up for a free account to increase your limit!";
+            } else if (userUsage?.tier === "free") {
+                return "You have reached the free usage limit."
+            }
+            return "Too many requests"
         }
-        return "Sorry, there's been an error. Please try again.";
+        return "Sorry, there's been an error. Please try again."
     }
 
     function getErrorStyle(status: number | null) {
