@@ -3,6 +3,7 @@ import { auth } from "../../auth"
 import SignInButton from "./SignInButton";
 import SignOutButton from "./SignOutButton";
 import Image from "next/image";
+import SubscriptionButton from "./SubscriptionButton";
 
 export default async function Navbar() {
   const session = await auth()
@@ -29,6 +30,7 @@ export default async function Navbar() {
               )}
               <span className="text-primary-text hidden md:block">{session.user?.name || session.user?.email}</span>
               <SignOutButton />
+              <SubscriptionButton />
             </div>
           ) : (
             <SignInButton />
