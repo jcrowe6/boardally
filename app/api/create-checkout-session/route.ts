@@ -2,9 +2,19 @@ import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 
 import { stripe } from '../../../lib/stripe'
+import { auth } from 'auth'
 
 export async function POST() {
   try {
+    const authSession = await auth()
+
+    if (!authSession || !authSession.user) {
+      return NextResponse.json(
+        { error: 'You must be logged in to subscribe' },
+        { status: 401 }
+      );
+    }
+
     const headersList = await headers()
     const origin = headersList.get('origin')
 
@@ -17,6 +27,9 @@ export async function POST() {
           quantity: 1,
         },
       ],
+      metadata: {
+        userId: authSession.user.id!,
+      },
       mode: 'subscription',
       success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/?canceled=true`,

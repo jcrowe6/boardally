@@ -1,5 +1,5 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
-import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb"
+import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, QueryCommand } from "@aws-sdk/lib-dynamodb"
 
 const dynamoDB = new DynamoDBClient({
     region: process.env.AWS_REGION
@@ -10,6 +10,24 @@ const docClient = DynamoDBDocumentClient.from(dynamoDB);
 export const tierLimits = {
     free: 5,
     paid: 100
+}
+
+export async function createDefaultUser(userId: string) {
+    const defaultUser = {
+        userId,
+        tier: "free",
+        requestCount: 0,
+        resetTimestamp: getEndOfDay(new Date()).getTime()
+    };
+
+    const putDefaultUserCommand = new PutCommand({
+        TableName: process.env.USERS_TABLE,
+        Item: defaultUser
+    })
+
+    await docClient.send(putDefaultUserCommand)
+    console.log(`Created default user ${userId}`)
+    return defaultUser;
 }
 
 // Right now this function is what creates the user in the User table
@@ -26,26 +44,41 @@ export async function getUserRequestInfo(userId: string) {
         const userResult = await docClient.send(getUserCommand)
 
         if (!userResult.Item) {
-            const defaultUser = {
-                userId,
-                tier: "free",
-                requestCount: 0,
-                resetTimestamp: getEndOfDay(new Date()).getTime()
-            };
-
-            const putDefaultUserCommand = new PutCommand({
-                TableName: process.env.USERS_TABLE,
-                Item: defaultUser
-            })
-
-            await docClient.send(putDefaultUserCommand)
-            console.log(`Created default user ${userId}`)
+            const defaultUser = createDefaultUser(userId)
             return defaultUser;
         }
 
         return userResult.Item;
     } catch (error) {
         console.error("Error fetching user request info:", error);
+        throw error;
+    }
+}
+
+export async function getUserByStripeCustomerId(stripeCustomerId: string) {
+    const getUserByStripeCustomerIdCommand = new QueryCommand({
+        TableName: 'boardally-users',
+        IndexName: 'stripeCustomerId-index', 
+        KeyConditionExpression: 'stripeCustomerId = :customerId',
+        ExpressionAttributeValues: {
+            ':customerId': stripeCustomerId,
+        }
+    })
+
+    
+
+    try {
+        const result = await docClient.send(getUserByStripeCustomerIdCommand)
+        const user = result.Items?.[0]
+
+        if (!user) {
+            console.error(`No user found with Stripe customer ID: ${stripeCustomerId}`);
+            return null;
+        }
+
+        return user
+    } catch (error) {
+        console.error("Error fetching user by Stripe customer ID:", error);
         throw error;
     }
 }
@@ -65,6 +98,28 @@ export async function updateUserRequestCount(userId: string, newCount: number, r
         await docClient.send(updateRequestCountRequest);
     } catch (error) {
         console.error("Error updating user request count:", error);
+        throw error;
+    }
+}
+
+export async function updateUserTier(userId: string, customerId: string, subscriptionId: string, newTier: string) {
+    const updateUserTierRequest = new UpdateCommand({
+        TableName: 'boardally-users',
+        Key: {
+            id: userId,
+        },
+        UpdateExpression: 'set tier = :tier, stripeCustomerId = :customerId, stripeSubscriptionId = :subscriptionId',
+        ExpressionAttributeValues: {
+            ':tier': newTier,
+            ':customerId': customerId,
+            ':subscriptionId': subscriptionId,
+        },
+        ReturnValues: 'UPDATED_NEW',
+    })
+    try {
+        await docClient.send(updateUserTierRequest);
+    } catch (error) {
+        console.error("Error updating user tier:", error);
         throw error;
     }
 }
