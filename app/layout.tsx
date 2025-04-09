@@ -1,6 +1,7 @@
 import "../globals.css"
 import { Analytics } from "@vercel/analytics/react"
 import Navbar from "./components/Navbar"
+import { SessionProvider } from "next-auth/react"
 
 export default function RootLayout({
     // Layouts must accept a children prop.
@@ -10,6 +11,7 @@ export default function RootLayout({
     children: React.ReactNode
   }) {
     return (
+      <SessionProvider>
       <html lang="en">
         <body>
             <Navbar/>
@@ -19,5 +21,6 @@ export default function RootLayout({
             <Analytics/>
         </body>
       </html>
+      </SessionProvider>
     )
   }

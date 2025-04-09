@@ -1,4 +1,4 @@
-export default async function SubscriptionButton() {
+export default function SubscriptionButton() {
     return (
         <form action="/api/create-checkout-session" method="POST">
             <section>

@@ -12,7 +12,16 @@ export const tierLimits = {
     paid: 100
 }
 
-export async function createDefaultUser(userId: string) {
+type User = {
+    userId: string;
+    tier: string;
+    requestCount: number;
+    resetTimestamp: number;
+    stripeCustomerId?: string;
+    stripeSubscriptionId?: string;
+}
+
+export async function createDefaultUser(userId: string): Promise<User> {
     const defaultUser = {
         userId,
         tier: "free",
@@ -25,9 +34,14 @@ export async function createDefaultUser(userId: string) {
         Item: defaultUser
     })
 
-    await docClient.send(putDefaultUserCommand)
-    console.log(`Created default user ${userId}`)
-    return defaultUser;
+    try {
+        docClient.send(putDefaultUserCommand)
+        console.log(`Created default user ${userId}`)
+        return defaultUser;
+    } catch (error) {
+        console.error("Error creating default user:", error);
+        throw error;
+    }
 }
 
 // Right now this function is what creates the user in the User table
@@ -44,7 +58,7 @@ export async function getUserRequestInfo(userId: string) {
         const userResult = await docClient.send(getUserCommand)
 
         if (!userResult.Item) {
-            const defaultUser = createDefaultUser(userId)
+            const defaultUser = await createDefaultUser(userId)
             return defaultUser;
         }
 
