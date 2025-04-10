@@ -13,7 +13,7 @@ export default function RootLayout({
     return (
       <SessionProvider>
       <html lang="en">
-        <body>
+        <body className="bg-app-background">
             <Navbar/>
             <main>
             {children}

@@ -15,22 +15,20 @@ export default async function Navbar() {
           <Link href="/" className="text-primary-text text-xl font-bold">Boardally</Link>
           <Link href="/about" className="text-primary-text hidden md:block">About</Link>
         </div>
-        
+
         <div className="flex items-center space-x-4">
           {isAuthenticated ? (
             <div className="flex items-center space-x-3">
-              {session.user?.image && (
-                <Image
-                  src={session.user.image}
-                  alt="Profile"
-                  width={32}
-                  height={32}
-                  className="rounded-full"
-                />
-              )}
-              <span className="text-primary-text hidden md:block">{session.user?.name || session.user?.email}</span>
+              <Link href='/account'>
+                <button
+                  type="submit"
+                  role="link"
+                  className="bg-button-background text-white py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-opacity-50 transition-all transform hover:scale-105 cursor-pointer"
+                >
+                  Account
+                </button>
+              </Link>
               <SignOutButton />
-              <SubscriptionButton />
             </div>
           ) : (
             <SignInButton />
