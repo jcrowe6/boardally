@@ -71,7 +71,7 @@ export async function getUserRequestInfo(userId: string) {
 
 export async function getUserByStripeCustomerId(stripeCustomerId: string) {
     const getUserByStripeCustomerIdCommand = new QueryCommand({
-        TableName: 'boardally-users',
+        TableName: process.env.USERS_TABLE,
         IndexName: 'stripeCustomerId-index', 
         KeyConditionExpression: 'stripeCustomerId = :customerId',
         ExpressionAttributeValues: {
@@ -118,10 +118,8 @@ export async function updateUserRequestCount(userId: string, newCount: number, r
 
 export async function updateUserTier(userId: string, customerId: string, subscriptionId: string, newTier: string) {
     const updateUserTierRequest = new UpdateCommand({
-        TableName: 'boardally-users',
-        Key: {
-            id: userId,
-        },
+        TableName: process.env.USERS_TABLE,
+        Key: { userId },
         UpdateExpression: 'set tier = :tier, stripeCustomerId = :customerId, stripeSubscriptionId = :subscriptionId',
         ExpressionAttributeValues: {
             ':tier': newTier,
