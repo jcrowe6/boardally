@@ -7,16 +7,35 @@ import SubscriptionButton from '../components/SubscriptionButton';
 import { getUserRequestInfo, tierLimits } from 'utils/userDDBClient';
 import { fetchUserUsage } from 'app/actions/usage';
 
+function ActionResult() {
+  const searchParams = useSearchParams();
+  const success = searchParams.get('success');
+  const canceled = searchParams.get('canceled');
+
+  if (success) {
+    return (
+      <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+        Subscription successful! Your account has been upgraded.
+      </div>
+    )
+  }
+
+  if (canceled) {
+    return (
+      <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-4">
+        Subscription process was canceled.
+      </div>
+    )
+  }
+
+  return null;
+}
+
 export default function SubscriptionPage() {
   const { data: session, status } = useSession()
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [userTier, setUserTier] = useState('');
   const [loading, setLoading] = useState(true);
-
-  // Check if coming back from successful checkout
-  const success = searchParams.get('success');
-  const canceled = searchParams.get('canceled');
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -48,19 +67,7 @@ export default function SubscriptionPage() {
       <h1 className="text-3xl text-primary-text font-bold mb-6">Account Management</h1>
 
       <Suspense>
-        {success && (
-          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-            Subscription successful! Your account has been upgraded.
-          </div>
-        )}
-      </Suspense>
-
-      <Suspense>
-        {canceled && (
-          <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-4">
-            Subscription process was canceled.
-          </div>
-        )}
+        <ActionResult />
       </Suspense>
 
       <div className="bg-primary-container shadow-md rounded-lg p-8 mb-6 text-primary-text">
