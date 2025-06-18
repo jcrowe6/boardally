@@ -20,15 +20,17 @@ export async function POST() {
     const user = await getUserRequestInfo(authSession.user.id!)
       
     if (!user) {
+      console.log('User not found:', authSession.user.id);
       return NextResponse.json(
       { error: 'User not found' },
       { status: 404 }
       );
     }
-
+    console.log('Creating billing portal session for user:', user);
     if (!user.stripeCustomerId) {
+      console.log('No Stripe customer ID found for user:', user.userId);
       return NextResponse.json(
-      { error: 'No subscription found for user ' + user.userId },
+      { error: 'No subscription found' },
       { status: 404 }
       );
     }
