@@ -19,11 +19,18 @@ export async function POST() {
     // Get user from DynamoDB
     const user = await getUserRequestInfo(authSession.user.id!)
       
-    if (!user || !user.stripeCustomerId) {
-        return NextResponse.json(
-        { error: 'No subscription found' },
-        { status: 404 }
-        );
+    if (!user) {
+      return NextResponse.json(
+      { error: 'User not found' },
+      { status: 404 }
+      );
+    }
+
+    if (!user.stripeCustomerId) {
+      return NextResponse.json(
+      { error: 'No subscription found for user ' + user.userId },
+      { status: 404 }
+      );
     }
 
     const headersList = await headers()
