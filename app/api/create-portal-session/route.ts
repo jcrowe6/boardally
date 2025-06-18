@@ -32,7 +32,7 @@ export async function POST() {
     // Create Checkout Sessions from body params.
     const session = await stripe.billingPortal.sessions.create({
         customer: user.stripeCustomerId,
-        return_url: `${origin}/subscription`,
+        return_url: `${origin}/account`,
       });
     return NextResponse.redirect(session.url!, 303)
   } catch (err) {
