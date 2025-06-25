@@ -1,0 +1,15 @@
+export default function AccountPortalButton() {
+    return (
+        <form action="/api/create-portal-session" method="POST">
+            <section>
+                <button
+                    type="submit"
+                    role="link"
+                    className="bg-button-background text-white py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-opacity-50 transition-all transform hover:scale-105 cursor-pointer"
+                >
+                    Manage Subscription
+                </button>
+            </section>
+        </form>
+    );
+}
