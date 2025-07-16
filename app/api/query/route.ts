@@ -45,81 +45,87 @@ function getPrompt(userQuestion: string) {
 }
 
 export async function POST(req: Request): Promise<Response | undefined> {
-    const session = await auth()
-    // Rate limiting for logged-in users
-    if (session) {
-        const userId = session.user?.id!!;
-        const userInfo = await getUserRequestInfo(userId);
-        console.log(`User ${userId} has ${userInfo.requestCount} requests today`)
-        // Check if request count needs to be reset (new day)
-        const now = new Date();
-        const resetTime = new Date(userInfo.resetTimestamp);
+    const reqbody = await req.json()
 
-        // This logic is what actually resets the user's request count on a new day
-        // TODO consider moving this elsewhere?
-        if (now.getTime() > resetTime.getTime()) {
-            // Reset count for new day
-            await updateUserRequestCount(userId, 1, getEndOfDay(now));
+    // Validate request
+    const {
+        "selectedGame[game_id]": gameId,
+        "selectedGame[display_name]": gameName,
+        question,
+        masterApiKey
+    } = RAGRequestSchema.parse(reqbody);
+    const MASTER_API_KEY = process.env.MASTER_API_KEY;
+    if (!masterApiKey || masterApiKey !== MASTER_API_KEY) {
+        const session = await auth()
+        // Rate limiting for logged-in users
+        if (session) {
+            const userId = session.user?.id!!;
+            const userInfo = await getUserRequestInfo(userId);
+            console.log(`User ${userId} has ${userInfo.requestCount} requests today`)
+            // Check if request count needs to be reset (new day)
+            const now = new Date();
+            const resetTime = new Date(userInfo.resetTimestamp);
+
+            // This logic is what actually resets the user's request count on a new day
+            // TODO consider moving this elsewhere?
+            if (now.getTime() > resetTime.getTime()) {
+                // Reset count for new day
+                await updateUserRequestCount(userId, 1, getEndOfDay(now));
+            } else {
+                // Check if user has exceeded their daily limit
+                const requestLimit = tierLimits[userInfo.tier]
+
+                if (userInfo.requestCount >= requestLimit) {
+                    console.log(`User ${userId} hit their daily limit`)
+                    const response = new Response(JSON.stringify({ answer: "Daily request limit reached" }), {
+                        headers: { 'Content-Type': 'application/json' },
+                        status: 429
+                    });
+                    return response
+                }
+
+                // Increment request count
+                await updateUserRequestCount(userId, userInfo.requestCount + 1, resetTime);
+            }
         } else {
-            // Check if user has exceeded their daily limit
-            const requestLimit = tierLimits[userInfo.tier]
+            const clientIp = ipAddress(req)
+            const cookieStore = await cookies()
+            let anonymousId = cookieStore.get('anonymousId')?.value
+            if (!anonymousId) {
+                anonymousId = nanoid();
+                cookieStore.set('anonymousId', anonymousId)
+            }
+            const anonKey = `${clientIp}:${anonymousId}`
 
-            if (userInfo.requestCount >= requestLimit) {
-                console.log(`User ${userId} hit their daily limit`)
-                const response = new Response(JSON.stringify({ answer: "Daily request limit reached" }), {
-                    headers: { 'Content-Type': 'application/json' },
-                    status: 429
-                });
-                return response
+            const anonInfo = await getAnonymousRequestCount(anonKey);
+
+            // Reset logic - similar to authenticated users
+            const now = new Date();
+            const resetTime = new Date(anonInfo.resetTimestamp);
+
+            if (now.getTime() > resetTime.getTime()) {
+                await updateAnonymousRequestCount(anonKey, 1, getEndOfDay(now));
+            } else {
+                const anonLimit = 1; 
+
+                if (anonInfo.requestCount >= anonLimit) {
+                    console.log(`Anon ${anonKey} hit their daily limit`)
+                    const response = new Response(JSON.stringify({ answer: "Daily request limit reached" }), {
+                        headers: { 'Content-Type': 'application/json' },
+                        status: 429
+                    });
+                    return response
+                }
+
+                await updateAnonymousRequestCount(anonKey, anonInfo.requestCount + 1, resetTime);
             }
 
-            // Increment request count
-            await updateUserRequestCount(userId, userInfo.requestCount + 1, resetTime);
         }
-    } else {
-        const clientIp = ipAddress(req)
-        const cookieStore = await cookies()
-        let anonymousId = cookieStore.get('anonymousId')?.value
-        if (!anonymousId) {
-            anonymousId = nanoid();
-            cookieStore.set('anonymousId', anonymousId)
-        }
-        const anonKey = `${clientIp}:${anonymousId}`
-
-        const anonInfo = await getAnonymousRequestCount(anonKey);
-
-        // Reset logic - similar to authenticated users
-        const now = new Date();
-        const resetTime = new Date(anonInfo.resetTimestamp);
-
-        if (now.getTime() > resetTime.getTime()) {
-            await updateAnonymousRequestCount(anonKey, 1, getEndOfDay(now));
-        } else {
-            const anonLimit = 1; 
-
-            if (anonInfo.requestCount >= anonLimit) {
-                console.log(`Anon ${anonKey} hit their daily limit`)
-                const response = new Response(JSON.stringify({ answer: "Daily request limit reached" }), {
-                    headers: { 'Content-Type': 'application/json' },
-                    status: 429
-                });
-                return response
-            }
-
-            await updateAnonymousRequestCount(anonKey, anonInfo.requestCount + 1, resetTime);
-        }
-
+    }
+    if (masterApiKey) {
+        console.log("Master API key provided! Skipping rate limiting")
     }
     try {
-        const reqbody = await req.json()
-
-        // Validate request
-        const {
-            "selectedGame[game_id]": gameId,
-            "selectedGame[display_name]": gameName,
-            question
-        } = RAGRequestSchema.parse(reqbody);
-
         const reqid = uid.rnd()
 
         const validation = validateInputContent(question)
