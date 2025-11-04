@@ -56,7 +56,7 @@ export async function GET(request: Request) {
       // Simple filter by match
       filteredGames = allGames
         .filter((game) =>
-          game.display_name.toLowerCase().includes(query.toLowerCase()),
+          game.display_name.toLowerCase().includes(query.toLowerCase())
         )
         .slice(0, 20); // Limit to 20 results
     }

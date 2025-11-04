@@ -35,7 +35,7 @@ export async function getAnonymousRequestCount(anonKey: string) {
         new PutCommand({
           TableName: process.env.ANON_TABLE,
           Item: defaultAnon,
-        }),
+        })
       );
 
       return defaultAnon;
@@ -51,7 +51,7 @@ export async function getAnonymousRequestCount(anonKey: string) {
 export async function updateAnonymousRequestCount(
   anonKey: string,
   newCount: number,
-  resetTimestamp: Date,
+  resetTimestamp: Date
 ) {
   const updateAnonymousRequestCount = new UpdateCommand({
     TableName: process.env.ANON_TABLE,

@@ -12,7 +12,7 @@ export async function POST() {
     if (!authSession || !authSession.user) {
       return NextResponse.json(
         { error: "You must be logged in to manage your subscription" },
-        { status: 401 },
+        { status: 401 }
       );
     }
 
@@ -28,7 +28,7 @@ export async function POST() {
       console.log("No Stripe customer ID found for user:", user.userId);
       return NextResponse.json(
         { error: "No subscription found" },
-        { status: 404 },
+        { status: 404 }
       );
     }
 
@@ -44,7 +44,7 @@ export async function POST() {
   } catch (err) {
     return NextResponse.json(
       { error: err.message },
-      { status: err.statusCode || 500 },
+      { status: err.statusCode || 500 }
     );
   }
 }

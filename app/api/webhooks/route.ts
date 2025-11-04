@@ -14,7 +14,7 @@ export const config = {
 
 async function buffer(readable: ReadableStream) {
   const nodeStream = Readable.from(
-    readable as unknown as AsyncIterable<Uint8Array>,
+    readable as unknown as AsyncIterable<Uint8Array>
   ); // Explicitly type as AsyncIterable<Uint8Array>
   const chunks: Buffer[] = [];
   for await (const chunk of nodeStream) {
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
       event = stripe.webhooks.constructEvent(
         buf,
         sig,
-        process.env.STRIPE_WEBHOOK_SECRET!,
+        process.env.STRIPE_WEBHOOK_SECRET!
       );
     } catch (err: any) {
       console.error(`Webhook signature verification failed: ${err.message}`);
@@ -72,13 +72,13 @@ export async function POST(req: Request) {
     console.error("Webhook error:", error);
     return NextResponse.json(
       { error: "Webhook handler failed" },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
 
 async function handleCheckoutSessionCompleted(
-  session: Stripe.Checkout.Session,
+  session: Stripe.Checkout.Session
 ) {
   console.log(`Handling checkout session completion for session ${session.id}`);
   const userId = session.metadata?.userId;
@@ -90,7 +90,7 @@ async function handleCheckoutSessionCompleted(
 
   // Get subscription details
   const subscription = await stripe.subscriptions.retrieve(
-    session.subscription as string,
+    session.subscription as string
   );
 
   // Update user tier in DynamoDB
@@ -98,7 +98,7 @@ async function handleCheckoutSessionCompleted(
     userId,
     session.customer as string,
     subscription.id,
-    "paid",
+    "paid"
   );
 }
 
@@ -106,7 +106,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   // Retrieve customer ID
   const customerId = subscription.customer as string;
   console.log(
-    `Handling subscription update for customer ${customerId}, subscription ${subscription.id}`,
+    `Handling subscription update for customer ${customerId}, subscription ${subscription.id}`
   );
 
   const user = await getUserByStripeCustomerId(customerId);
@@ -120,7 +120,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   const status = subscription.status;
   const tier = status === "active" || status === "trialing" ? "paid" : "free";
   console.log(
-    `Subscription status for customer ${customerId}: ${status}. Setting tier to ${tier}`,
+    `Subscription status for customer ${customerId}: ${status}. Setting tier to ${tier}`
   );
 
   // Update user tier
@@ -131,7 +131,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   // Similar to handleSubscriptionUpdated but always set tier to 'free'
   const customerId = subscription.customer as string;
   console.log(
-    `Handling subscription deletion for customer ${customerId}, subscription ${subscription.id}`,
+    `Handling subscription deletion for customer ${customerId}, subscription ${subscription.id}`
   );
 
   const user = await getUserByStripeCustomerId(customerId);
@@ -148,7 +148,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
   const customerId = invoice.customer as string;
   console.log(
-    `Handling payment failure for customer ${customerId}, invoice ${invoice.id}`,
+    `Handling payment failure for customer ${customerId}, invoice ${invoice.id}`
   );
 
   const user = await getUserByStripeCustomerId(customerId);
@@ -165,7 +165,7 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
 
   // Optionally, you might want to notify the user or log more details here.
   console.warn(
-    `Payment failed for user ${user.userId} (customer ${customerId}), invoice ${invoice.id}`,
+    `Payment failed for user ${user.userId} (customer ${customerId}), invoice ${invoice.id}`
   );
 
   // Set user tier to 'free' due to payment failure
@@ -173,6 +173,6 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
     user.userId,
     customerId,
     user.stripeSubscriptionId,
-    "free",
+    "free"
   );
 }

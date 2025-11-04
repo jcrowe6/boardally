@@ -8,7 +8,7 @@ export default function QueryBox({ userUsage }) {
   const [errorStatus, setErrorStatus] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [userRequestsToday, setUserRequestsToday] = useState(
-    userUsage?.requestCount,
+    userUsage?.requestCount
   );
   const [showAnswer, setShowAnswer] = useState(false);
 

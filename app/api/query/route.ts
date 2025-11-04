@@ -33,7 +33,7 @@ const getRequiredEnvVar = (name: string): string => {
 
 const requiredEnvVars = ["GEMINI_API_KEY", "RESUMABLE_UPLOAD_URL"] as const;
 const env = Object.fromEntries(
-  requiredEnvVars.map((key) => [key, getRequiredEnvVar(key)]),
+  requiredEnvVars.map((key) => [key, getRequiredEnvVar(key)])
 );
 
 const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
@@ -66,7 +66,7 @@ function getPrompt(userQuestion: string, rulebookChunks: string[]): string {
 async function getTopKChunksFromPinecone(
   namespace: string,
   query: string,
-  k: number,
+  k: number
 ): Promise<string[]> {
   const ns = pineconeIndex.namespace(namespace);
   return await ns
@@ -111,7 +111,7 @@ export async function POST(req: Request): Promise<Response | undefined> {
           {
             headers: { "Content-Type": "application/json" },
             status: 429,
-          },
+          }
         );
         return response;
       }
@@ -120,7 +120,7 @@ export async function POST(req: Request): Promise<Response | undefined> {
       await updateUserRequestCount(
         userId,
         userInfo.requestCount + 1,
-        resetTime,
+        resetTime
       );
     }
   } else {
@@ -151,7 +151,7 @@ export async function POST(req: Request): Promise<Response | undefined> {
           {
             headers: { "Content-Type": "application/json" },
             status: 429,
-          },
+          }
         );
         return response;
       }
@@ -159,7 +159,7 @@ export async function POST(req: Request): Promise<Response | undefined> {
       await updateAnonymousRequestCount(
         anonKey,
         anonInfo.requestCount + 1,
-        resetTime,
+        resetTime
       );
     }
   }
@@ -187,13 +187,13 @@ export async function POST(req: Request): Promise<Response | undefined> {
     const topChunks = await getTopKChunksFromPinecone(
       oldGameName,
       question,
-      10,
+      10
     );
     log(
       reqid,
       `Got relevant chunks from Pinecone: ${topChunks.map(
-        (c) => `${c.substring(0, 50)}...`,
-      )}`,
+        (c) => `${c.substring(0, 50)}...`
+      )}`
     );
 
     const result = await model.generateContent([
@@ -215,7 +215,7 @@ export async function POST(req: Request): Promise<Response | undefined> {
         {
           headers: { "Content-Type": "application/json" },
           status: 400,
-        },
+        }
       );
       return response;
     }
@@ -227,7 +227,7 @@ export async function POST(req: Request): Promise<Response | undefined> {
         {
           headers: { "Content-Type": "application/json" },
           status: 422,
-        },
+        }
       );
       return response;
     }
@@ -238,7 +238,7 @@ export async function POST(req: Request): Promise<Response | undefined> {
       {
         headers: { "Content-Type": "application/json" },
         status: 500,
-      },
+      }
     );
     return response;
   }

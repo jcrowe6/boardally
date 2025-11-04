@@ -13,7 +13,7 @@ export type ResumableUploadOptions = {
 };
 
 export function resumableUpload(
-  options: ResumableUploadOptions,
+  options: ResumableUploadOptions
 ): Promise<UploadFileResponse> {
   const {
     fileUrl = "",
@@ -37,7 +37,7 @@ export function resumableUpload(
         throw new Error("Failed to get file from URL");
       }
       mainData = stream.Readable.fromWeb(
-        res1.body as ReadableStream<Uint8Array>,
+        res1.body as ReadableStream<Uint8Array>
       );
     } else {
       throw new Error("Please set fileUrl");
@@ -65,7 +65,7 @@ export function resumableUpload(
       location = res2.headers.get("location");
       if (!location) {
         throw new Error(
-          "Failed to get location header from resumable upload initialization",
+          "Failed to get location header from resumable upload initialization"
         );
       }
     } else {
@@ -89,7 +89,7 @@ export function resumableUpload(
           console.log(
             `Progress: from ${startByte} to ${
               startByte + dataChunk.length - 1
-            } for ${dataSize}`,
+            } for ${dataSize}`
           );
           const res3 = await fetch(location!, {
             method: "PUT",
@@ -141,7 +141,7 @@ export function resumableUpload(
           console.log(
             `Progress(last): from ${startByte} to ${
               startByte + dataChunk.length - 1
-            } for ${dataSize}`,
+            } for ${dataSize}`
           );
           const res4 = await fetch(location!, {
             method: "PUT",

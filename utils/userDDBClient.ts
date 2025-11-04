@@ -91,7 +91,7 @@ export async function getUserByStripeCustomerId(stripeCustomerId: string) {
 
     if (!user) {
       console.error(
-        `No user found with Stripe customer ID: ${stripeCustomerId}`,
+        `No user found with Stripe customer ID: ${stripeCustomerId}`
       );
       return null;
     }
@@ -106,7 +106,7 @@ export async function getUserByStripeCustomerId(stripeCustomerId: string) {
 export async function updateUserRequestCount(
   userId: string,
   newCount: number,
-  resetTimestamp: Date,
+  resetTimestamp: Date
 ) {
   const updateRequestCountRequest = new UpdateCommand({
     TableName: process.env.USERS_TABLE,
@@ -130,7 +130,7 @@ export async function updateUserTier(
   userId: string,
   customerId: string,
   subscriptionId: string,
-  newTier: string,
+  newTier: string
 ) {
   const updateUserTierRequest = new UpdateCommand({
     TableName: process.env.USERS_TABLE,

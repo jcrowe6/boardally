@@ -25,7 +25,7 @@ export default function SearchBox() {
     setIsLoading(true);
     try {
       const response = await fetch(
-        `/api/search?query=${encodeURIComponent(searchQuery)}`,
+        `/api/search?query=${encodeURIComponent(searchQuery)}`
       );
       if (!response.ok) {
         throw new Error(`Search failed: ${response.statusText}`);
@@ -70,7 +70,7 @@ export default function SearchBox() {
           onChange={(event) => setQuery(event.target.value)}
           className={clsx(
             "w-full h-12 rounded-lg border-none bg-gray-800 text-white px-4 text-base",
-            "focus:outline-none data-[focus]:outline-2 data-[focus]:-outline-offset-2 data-[focus]:outline-white/25",
+            "focus:outline-none data-[focus]:outline-2 data-[focus]:-outline-offset-2 data-[focus]:outline-white/25"
           )}
         />
         {isLoading && (
@@ -104,7 +104,7 @@ export default function SearchBox() {
         className={clsx(
           "w-[var(--input-width)] rounded-xl border border-white/10 bg-gray-900 p-1 [--anchor-gap:4px] empty:invisible",
           "transition duration-100 ease-in data-[leave]:data-[closed]:opacity-0",
-          "shadow-lg shadow-black/20",
+          "shadow-lg shadow-black/20"
         )}
       >
         {games.length === 0 && !isLoading ? (
