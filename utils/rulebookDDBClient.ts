@@ -88,7 +88,13 @@ export async function getAllValidGames(): Promise<Game[]> {
     } while (lastEvaluatedKey);
 
     // Convert the map values to an array
-    return Array.from(gameMap.values()).map((rb_record) => { return { game_id: rb_record.game_id, display_name: rb_record.display_name } });
+    return Array.from(gameMap.values()).map((rb_record) => { 
+      return { 
+        game_id: rb_record.game_id, 
+        display_name: rb_record.display_name, 
+        name: (rb_record.old_id as string).split('_')[1]
+      } 
+    });
   } catch (error) {
     console.error('Error querying DynamoDB:', error);
     throw error;
