@@ -1,18 +1,20 @@
 // Adapted from https://github.com/tanaikech/resumableUploadForGoogleAPIs_nodejs
-import { UploadFileResponse } from '@google/generative-ai/dist/server/server';
-import { default as stream } from 'node:stream'
-import type { ReadableStream } from 'node:stream/web'
+import { UploadFileResponse } from "@google/generative-ai/dist/server/server";
+import { default as stream } from "node:stream";
+import type { ReadableStream } from "node:stream/web";
 
 export type ResumableUploadOptions = {
-  fileUrl?: string;        // File URL of the file for uploading
-  resumableUrl: string;    // URL for running the resumable upload
-  dataSize: number;        // Data size (content size, file size) of the file
-  accessToken: string;     // Access token for uploading with Google API you want to use
-  metadata?: object;       // Metadata for Google API
-  chunkSize?: number;      // Chunk size in bytes. Default is 16MB. Should be multiples of 256KB
-}
+  fileUrl?: string; // File URL of the file for uploading
+  resumableUrl: string; // URL for running the resumable upload
+  dataSize: number; // Data size (content size, file size) of the file
+  accessToken: string; // Access token for uploading with Google API you want to use
+  metadata?: object; // Metadata for Google API
+  chunkSize?: number; // Chunk size in bytes. Default is 16MB. Should be multiples of 256KB
+};
 
-export function resumableUpload(options: ResumableUploadOptions) : Promise<UploadFileResponse> {
+export function resumableUpload(
+  options: ResumableUploadOptions,
+): Promise<UploadFileResponse> {
   const {
     fileUrl = "",
     resumableUrl = "",
@@ -21,7 +23,7 @@ export function resumableUpload(options: ResumableUploadOptions) : Promise<Uploa
     metadata = {},
     chunkSize = 16777216,
   } = options;
-  
+
   return new Promise(async (resolve, reject) => {
     let mainData;
     if (resumableUrl == "" || dataSize == 0) {
@@ -34,7 +36,9 @@ export function resumableUpload(options: ResumableUploadOptions) : Promise<Uploa
       if (!res1.body) {
         throw new Error("Failed to get file from URL");
       }
-      mainData = stream.Readable.fromWeb(res1.body as ReadableStream<Uint8Array>);
+      mainData = stream.Readable.fromWeb(
+        res1.body as ReadableStream<Uint8Array>,
+      );
     } else {
       throw new Error("Please set fileUrl");
     }
@@ -60,13 +64,15 @@ export function resumableUpload(options: ResumableUploadOptions) : Promise<Uploa
     if (res2.ok) {
       location = res2.headers.get("location");
       if (!location) {
-        throw new Error("Failed to get location header from resumable upload initialization");
+        throw new Error(
+          "Failed to get location header from resumable upload initialization",
+        );
       }
     } else {
       reject({ status: res2.status, error: await res2.json() });
       return;
     }
-    
+
     // Upload the file.
     let startByte = 0;
     let bufferData: Uint8Array[] = [];
@@ -83,7 +89,7 @@ export function resumableUpload(options: ResumableUploadOptions) : Promise<Uploa
           console.log(
             `Progress: from ${startByte} to ${
               startByte + dataChunk.length - 1
-            } for ${dataSize}`
+            } for ${dataSize}`,
           );
           const res3 = await fetch(location!, {
             method: "PUT",
@@ -135,7 +141,7 @@ export function resumableUpload(options: ResumableUploadOptions) : Promise<Uploa
           console.log(
             `Progress(last): from ${startByte} to ${
               startByte + dataChunk.length - 1
-            } for ${dataSize}`
+            } for ${dataSize}`,
           );
           const res4 = await fetch(location!, {
             method: "PUT",
