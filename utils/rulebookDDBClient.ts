@@ -57,9 +57,10 @@ export async function getAllValidGames(): Promise<Game[]> {
   try {
     const command = new ScanCommand({
       TableName: process.env.RULEBOOK_TABLE!,
-      FilterExpression: "quality > :minQuality",
+      FilterExpression: "quality > :minQuality AND inPinecone = :true",
       ExpressionAttributeValues: {
         ":minQuality": 0, // Only get valid PDFs (quality > 0)
+        ":true": true,
       },
     });
 
