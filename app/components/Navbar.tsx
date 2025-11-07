@@ -1,25 +1,29 @@
 import Link from "next/link";
-import { auth } from "../../auth"
+import { auth } from "../../auth";
 import SignInButton from "./SignInButton";
 import SignOutButton from "./SignOutButton";
 import Image from "next/image";
 import SubscriptionButton from "./SubscriptionButton";
 
 export default async function Navbar() {
-  const session = await auth()
-  const isAuthenticated = !!session
+  const session = await auth();
+  const isAuthenticated = !!session;
   return (
     <nav className="bg-primary-container px-4 fixed top-0 left-0 w-full h-16 shadow-md z-50 flex items-center">
       <div className="container mx-auto flex justify-between items-center">
         <div className="flex items-baseline space-x-4">
-          <Link href="/" className="text-primary-text text-xl font-bold">Boardally</Link>
-          <Link href="/about" className="text-primary-text hidden md:block">About</Link>
+          <Link href="/" className="text-primary-text text-xl font-bold">
+            Boardally
+          </Link>
+          <Link href="/about" className="text-primary-text hidden md:block">
+            About
+          </Link>
         </div>
 
         <div className="flex items-center space-x-4">
           {isAuthenticated ? (
             <div className="flex items-center space-x-3">
-              <Link href='/account'>
+              <Link href="/account">
                 <button
                   type="submit"
                   role="link"

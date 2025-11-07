@@ -2,7 +2,7 @@ import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION!
+  region: process.env.AWS_REGION!,
 });
 
 export async function getSecureS3Url(key: string) {
@@ -11,14 +11,14 @@ export async function getSecureS3Url(key: string) {
       Bucket: process.env.RULEBOOK_BUCKET,
       Key: key,
     });
-    
+
     const signedUrl = await getSignedUrl(s3Client, command, {
       expiresIn: 600,
     });
-    
+
     return signedUrl;
   } catch (error) {
-    console.error('Error generating signed URL:', error);
+    console.error("Error generating signed URL:", error);
     throw error;
   }
 }
