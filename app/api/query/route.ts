@@ -64,18 +64,18 @@ function getPrompt(userQuestion: string, rulebookChunks: string[]): string {
 }
 
 async function getTopKChunksFromPinecone(
-  namespace: string,
+  gameName: string,
   query: string,
   k: number
 ): Promise<string[]> {
-  const ns = pineconeIndex.namespace(namespace);
-  return await ns
+  return await pineconeIndex
     .searchRecords({
       query: {
         topK: k,
         inputs: {
           text: query,
         },
+        filter: { gameName: gameName },
       },
     })
     .then((response) => {
