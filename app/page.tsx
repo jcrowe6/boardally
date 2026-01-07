@@ -1,9 +1,13 @@
-import { SessionProvider } from "next-auth/react";
 import QueryBox from "./components/QueryBox";
 import { fetchUserUsage } from "./actions/usage";
+import { fetchInitialGames } from "./actions/games";
 
 export default async function Home() {
-  const userUsage = await fetchUserUsage();
+  const [userUsage, initialGames] = await Promise.all([
+    fetchUserUsage(),
+    fetchInitialGames(),
+  ]);
+
   return (
     <div className="bg-app-background min-h-screen bg-opacity-90 flex items-center flex-col px-4">
       <div className="w-full max-w-md pt-40 mb-20">
@@ -11,7 +15,7 @@ export default async function Home() {
           Boardally
         </h1>
 
-        <QueryBox userUsage={userUsage} />
+        <QueryBox userUsage={userUsage} initialGames={initialGames} />
       </div>
     </div>
   );

@@ -1,14 +1,23 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import SearchBox from "./SearchBox";
+import SearchBox, { Game } from "./SearchBox";
 
-export default function QueryBox({ userUsage }) {
+interface QueryBoxProps {
+  userUsage: {
+    requestCount: number;
+    tier: string;
+    requestLimit: number;
+  } | null;
+  initialGames?: Game[];
+}
+
+export default function QueryBox({ userUsage, initialGames = [] }: QueryBoxProps) {
   const [answer, setAnswer] = useState("");
   const [errorStatus, setErrorStatus] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [userRequestsToday, setUserRequestsToday] = useState(
-    userUsage?.requestCount
+    userUsage?.requestCount ?? 0
   );
   const [showAnswer, setShowAnswer] = useState(false);
 
@@ -97,7 +106,7 @@ export default function QueryBox({ userUsage }) {
             <div
               className="bg-button-background h-1.5 rounded-full"
               style={{
-                width: `${Math.min(100, (userRequestsToday / userUsage.requestLimit) * 100)}%`,
+                width: `${Math.min(100, ((userRequestsToday ?? 0) / userUsage.requestLimit) * 100)}%`,
               }}
             ></div>
           </div>
@@ -106,7 +115,7 @@ export default function QueryBox({ userUsage }) {
       <div className="bg-primary-container bg-opacity-overlay backdrop-blur-sm rounded-lg shadow-lg p-6 mb-6 border border-primary-container-border">
         <form onSubmit={onSubmit} className="flex flex-col">
           <div className="mb-5">
-            <SearchBox />
+            <SearchBox initialGames={initialGames} />
           </div>
 
           <div className="mb-5">

@@ -14,10 +14,14 @@ export type Game = {
   game_id: string;
 };
 
-export default function SearchBox() {
+interface SearchBoxProps {
+  initialGames?: Game[];
+}
+
+export default function SearchBox({ initialGames = [] }: SearchBoxProps) {
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [query, setQuery] = useState("");
-  const [games, setGames] = useState<Game[]>([]);
+  const [games, setGames] = useState<Game[]>(initialGames);
   const [isLoading, setIsLoading] = useState(false);
 
   // Debounced search with useCallback
@@ -40,13 +44,11 @@ export default function SearchBox() {
     }
   }, []);
 
-  // Fetch initial results on mount
+  // Handle search input changes with debounce - only fetch when user types
   useEffect(() => {
-    fetchResults("");
-  }, [fetchResults]);
+    // Skip fetching if query is empty - we already have initial games
+    if (query === "") return;
 
-  // Handle search input changes with debounce
-  useEffect(() => {
     const timeoutId = setTimeout(() => {
       fetchResults(query);
     }, 300); // 300ms debounce

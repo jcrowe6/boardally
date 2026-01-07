@@ -50,10 +50,9 @@ export async function createDefaultUser(userId: string): Promise<User> {
   }
 }
 
-// Right now this function is what creates the user in the User table
-// this gets called in the getUserRequestInfo action on the homepage load, so the record should be there
-// when the user actually makes their first request
-// but isn't good design. should probably create the user in Users when they first sign in with Auth.js TODO
+// Gets user request info, creating a default user if one doesn't exist.
+// User creation primarily happens at sign-in via NextAuth callback in auth.ts,
+// but this serves as a fallback for race conditions or existing users.
 export async function getUserRequestInfo(userId: string) {
   const getUserCommand = new GetCommand({
     TableName: process.env.USERS_TABLE,
