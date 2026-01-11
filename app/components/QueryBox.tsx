@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import SearchBox, { Game } from "./SearchBox";
+import AnswerDisplay from "./AnswerDisplay";
 
 interface QueryBoxProps {
   userUsage: {
@@ -16,16 +17,27 @@ export default function QueryBox({ userUsage, initialGames = [] }: QueryBoxProps
   const [answer, setAnswer] = useState("");
   const [errorStatus, setErrorStatus] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [userRequestsToday, setUserRequestsToday] = useState(
     userUsage?.requestCount ?? 0
   );
   const [showAnswer, setShowAnswer] = useState(false);
+  const answerRef = useRef<HTMLDivElement>(null);
+
+  // Scroll answer into view when it appears
+  useEffect(() => {
+    if (showAnswer && answerRef.current) {
+      answerRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [showAnswer]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorStatus(null);
     setIsLoading(true);
+    setIsStreaming(false);
     setShowAnswer(false);
+    setAnswer("");
 
     const formData = new FormData(event.currentTarget);
     const formDataJson = JSON.stringify(Object.fromEntries(formData));
@@ -41,20 +53,38 @@ export default function QueryBox({ userUsage, initialGames = [] }: QueryBoxProps
 
       if (!response.ok) {
         setErrorStatus(response.status);
-        setTimeout(() => setShowAnswer(true), 100);
+        setShowAnswer(true);
+        setIsLoading(false);
         return;
       }
 
-      const data = await response.json();
-      setAnswer(data["answer"]);
+      // Handle streaming response
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("No response body");
+      }
+
+      const decoder = new TextDecoder();
+      setShowAnswer(true);
+      setIsStreaming(true);
       setUserRequestsToday(userRequestsToday + 1);
-      setTimeout(() => setShowAnswer(true), 100);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const text = decoder.decode(value, { stream: true });
+        setAnswer((prev) => prev + text);
+      }
+
+      setIsStreaming(false);
     } catch (error) {
       console.error(error);
       setErrorStatus(500);
-      setTimeout(() => setShowAnswer(true), 100);
+      setShowAnswer(true);
     } finally {
       setIsLoading(false);
+      setIsStreaming(false);
     }
   }
 
@@ -95,16 +125,11 @@ export default function QueryBox({ userUsage, initialGames = [] }: QueryBoxProps
                 today
               </span>
             </div>
-            {/* {userUsage.tier === "free" && (
-                            <a href="/upgrade" className="text-button-background hover:underline font-medium">
-                                Upgrade
-                            </a>
-                        )} */}
           </div>
 
           <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2 overflow-hidden">
             <div
-              className="bg-button-background h-1.5 rounded-full"
+              className="bg-button-background h-1.5 rounded-full transition-all duration-300"
               style={{
                 width: `${Math.min(100, ((userRequestsToday ?? 0) / userUsage.requestLimit) * 100)}%`,
               }}
@@ -119,18 +144,33 @@ export default function QueryBox({ userUsage, initialGames = [] }: QueryBoxProps
           </div>
 
           <div className="mb-5">
-            <input
+            <textarea
               name="question"
-              type="text"
               placeholder="What's your question?"
               autoComplete="off"
-              className="w-full px-4 py-3 rounded-md border border-input-border bg-input-background bg-opacity-medium focus:outline-none focus:ring-2 focus:ring-input-focus-ring focus:border-transparent transition-all text-primary-text placeholder-placeholder-text"
+              rows={1}
+              onInput={(e) => {
+                const target = e.target as HTMLTextAreaElement;
+                target.style.height = "auto";
+                target.style.height = target.scrollHeight + "px";
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  const form = e.currentTarget.form;
+                  if (form) {
+                    form.requestSubmit();
+                  }
+                }
+              }}
+              className="w-full px-4 py-3 rounded-md border border-input-border bg-input-background bg-opacity-medium focus:outline-none focus:ring-2 focus:ring-input-focus-ring focus:border-transparent transition-all text-primary-text placeholder-placeholder-text resize-none overflow-hidden min-h-[48px]"
             />
           </div>
 
           <button
             type="submit"
-            className="bg-button-background text-white font-medium py-3 px-6 rounded-md focus:outline-none focus:ring-2 focus:ring-opacity-50 transition-all transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+            disabled={isLoading}
+            className="bg-button-background text-white font-medium py-3 px-6 rounded-md focus:outline-none focus:ring-2 focus:ring-opacity-50 transition-all transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
           >
             {isLoading ? (
               <span className="flex items-center justify-center">
@@ -141,7 +181,7 @@ export default function QueryBox({ userUsage, initialGames = [] }: QueryBoxProps
                   viewBox="0 0 24 24"
                 >
                   <circle
-                    className="opacity-light"
+                    className="opacity-25"
                     cx="12"
                     cy="12"
                     r="10"
@@ -149,38 +189,58 @@ export default function QueryBox({ userUsage, initialGames = [] }: QueryBoxProps
                     strokeWidth="4"
                   ></circle>
                   <path
-                    className="opacity-semi"
+                    className="opacity-75"
                     fill="currentColor"
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   ></path>
                 </svg>
-                Processing...
+                {isStreaming ? "Generating answer..." : "Searching rulebooks..."}
               </span>
             ) : (
-              "Submit"
+              "Ask Question"
             )}
           </button>
         </form>
       </div>
 
-      {(answer || errorStatus) && (
-        <div
-          className={`p-6 rounded-lg transform transition-all duration-500 ease-out ${
-            showAnswer ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-          } ${
-            errorStatus
-              ? getErrorStyle(errorStatus)
-              : "bg-primary-container bg-opacity-overlay text-primary-text border border-primary-container-border"
-          }`}
-        >
-          <h2 className="text-lg font-medium mb-2">
-            {errorStatus ? "Error" : "Answer"}
-          </h2>
-          <p className="text-lg">
-            {errorStatus ? getErrorMessage(errorStatus) : answer}
-          </p>
-        </div>
-      )}
+      {/* Answer section with scroll margin */}
+      <div ref={answerRef} className="scroll-mt-4">
+        {/* Error display */}
+        {errorStatus && (
+          <div
+            className={`p-6 rounded-lg transform transition-all duration-300 ease-out ${
+              showAnswer ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+            } ${getErrorStyle(errorStatus)}`}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <h2 className="text-lg font-semibold">Error</h2>
+            </div>
+            <p className="text-base">{getErrorMessage(errorStatus)}</p>
+          </div>
+        )}
+
+        {/* Answer display */}
+        {answer && !errorStatus && (
+          <AnswerDisplay
+            answer={answer}
+            isStreaming={isStreaming}
+            isVisible={showAnswer}
+          />
+        )}
+      </div>
     </>
   );
 }

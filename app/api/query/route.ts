@@ -1,6 +1,5 @@
 import { RAGRequestSchema } from "../../../schemas/rag/ragRequestSchema";
 import { z } from "zod";
-import { GoogleAIFileManager } from "@google/generative-ai/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import ShortUniqueId from "short-unique-id";
 import {
@@ -31,13 +30,12 @@ const getRequiredEnvVar = (name: string): string => {
   return value;
 };
 
-const requiredEnvVars = ["GEMINI_API_KEY", "RESUMABLE_UPLOAD_URL"] as const;
+const requiredEnvVars = ["GEMINI_API_KEY"] as const;
 const env = Object.fromEntries(
   requiredEnvVars.map((key) => [key, getRequiredEnvVar(key)])
 );
 
 const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
-const googleFileManager = new GoogleAIFileManager(env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 const uid = new ShortUniqueId({ length: 10 });
@@ -196,17 +194,38 @@ export async function POST(req: Request): Promise<Response | undefined> {
       )}`
     );
 
-    const result = await model.generateContent([
+    // Use streaming for real-time response
+    const streamResult = await model.generateContentStream([
       getPrompt(question, topChunks),
     ]);
 
-    const answer = result.response.text();
-    log(reqid, `Answer: ${answer}`);
-    const response = new Response(JSON.stringify({ answer: answer }), {
-      headers: { "Content-Type": "application/json" },
+    // Create a ReadableStream that sends chunks as they arrive
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of streamResult.stream) {
+            const text = chunk.text();
+            if (text) {
+              controller.enqueue(encoder.encode(text));
+            }
+          }
+          controller.close();
+        } catch (error) {
+          console.error("Streaming error:", error);
+          controller.error(error);
+        }
+      },
+    });
+
+    log(reqid, `Streaming response started`);
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Transfer-Encoding": "chunked",
+      },
       status: 200,
     });
-    return response;
   } catch (error) {
     if (error instanceof z.ZodError) {
       console.error("Zod validation error:", error.errors);

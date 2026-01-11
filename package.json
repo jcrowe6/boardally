@@ -26,6 +26,7 @@
     "next-auth": "beta",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-markdown": "^10.1.0",
     "short-unique-id": "^5.2.0",
     "stripe": "^18.0.0",
     "swr": "^2.0.0",
