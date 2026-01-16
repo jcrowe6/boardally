@@ -1,9 +1,32 @@
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
-import { DynamoDBDocumentClient, QueryCommand, ScanCommand } from "@aws-sdk/lib-dynamodb"
-import { Game } from '../app/components/SearchBox';
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import {
+  DynamoDBDocumentClient,
+  QueryCommand,
+  ScanCommand,
+} from "@aws-sdk/lib-dynamodb";
+import { Game } from "../app/components/SearchBox";
+
+// Debug logging for AWS credentials
+console.log("[DynamoDB Client Init] AWS_REGION:", process.env.AWS_REGION);
+console.log(
+  "[DynamoDB Client Init] AWS_ACCESS_KEY_ID:",
+  process.env.AWS_ACCESS_KEY_ID ? "SET" : "NOT SET"
+);
+console.log(
+  "[DynamoDB Client Init] AWS_SECRET_ACCESS_KEY:",
+  process.env.AWS_SECRET_ACCESS_KEY ? "SET" : "NOT SET"
+);
+console.log(
+  "[DynamoDB Client Init] AWS_SESSION_TOKEN:",
+  process.env.AWS_SESSION_TOKEN ? "SET" : "NOT SET"
+);
+console.log(
+  "[DynamoDB Client Init] RULEBOOK_TABLE:",
+  process.env.RULEBOOK_TABLE
+);
 
 const dynamoDB = new DynamoDBClient({
-  region: process.env.AWS_REGION
+  region: process.env.AWS_REGION,
 });
 
 const docClient = DynamoDBDocumentClient.from(dynamoDB);
@@ -18,7 +41,7 @@ export interface RuleBookRecord {
 export class RuleBookNotFoundError extends Error {
   constructor(gameId: string) {
     super(`No valid rulebook found for game: ${gameId}`);
-    this.name = 'RuleBookNotFoundError';
+    this.name = "RuleBookNotFoundError";
   }
 }
 
@@ -26,10 +49,10 @@ export async function getBestRuleBook(gameId: string): Promise<RuleBookRecord> {
   try {
     const command = new QueryCommand({
       TableName: process.env.RULEBOOK_TABLE!,
-      KeyConditionExpression: 'game_id = :game_id AND quality > :minQuality',
+      KeyConditionExpression: "game_id = :game_id AND quality > :minQuality",
       ExpressionAttributeValues: {
-        ':game_id': gameId,
-        ':minQuality': 0, // Only get valid PDFs (quality > 0)
+        ":game_id": gameId,
+        ":minQuality": 0, // Only get valid PDFs (quality > 0)
       },
       Limit: 1,
       ScanIndexForward: false, // Sort in descending order
@@ -38,13 +61,13 @@ export async function getBestRuleBook(gameId: string): Promise<RuleBookRecord> {
     const response = await docClient.send(command);
 
     if (!response.Items || response.Items.length === 0) {
-      throw new RuleBookNotFoundError(gameId)
+      throw new RuleBookNotFoundError(gameId);
     }
 
     const bestRuleBook = response.Items[0] as RuleBookRecord;
     return bestRuleBook;
   } catch (error) {
-    console.error('Error querying DynamoDB:', error);
+    console.error("Error querying DynamoDB:", error);
     throw error;
   }
 }
@@ -53,10 +76,10 @@ export async function getAllValidGames(): Promise<Game[]> {
   try {
     const command = new ScanCommand({
       TableName: process.env.RULEBOOK_TABLE!,
-      FilterExpression: 'quality > :minQuality',
+      FilterExpression: "quality > :minQuality",
       ExpressionAttributeValues: {
-        ':minQuality': 0, // Only get valid PDFs (quality > 0)
-      }
+        ":minQuality": 0, // Only get valid PDFs (quality > 0)
+      },
     });
 
     const gameMap = new Map<string, any>();
@@ -78,7 +101,10 @@ export async function getAllValidGames(): Promise<Game[]> {
 
           // If we haven't seen this game_id yet, or if this item has higher quality
           // than what we've seen before, update the map
-          if (!gameMap.has(gameId) || item.quality > gameMap.get(gameId).quality) {
+          if (
+            !gameMap.has(gameId) ||
+            item.quality > gameMap.get(gameId).quality
+          ) {
             gameMap.set(gameId, item);
           }
         }
@@ -88,9 +114,14 @@ export async function getAllValidGames(): Promise<Game[]> {
     } while (lastEvaluatedKey);
 
     // Convert the map values to an array
-    return Array.from(gameMap.values()).map((rb_record) => { return { game_id: rb_record.game_id, display_name: rb_record.display_name } });
+    return Array.from(gameMap.values()).map((rb_record) => {
+      return {
+        game_id: rb_record.game_id,
+        display_name: rb_record.display_name,
+      };
+    });
   } catch (error) {
-    console.error('Error querying DynamoDB:', error);
+    console.error("Error querying DynamoDB:", error);
     throw error;
   }
 }
