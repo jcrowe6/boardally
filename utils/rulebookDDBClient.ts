@@ -10,7 +10,7 @@ import { Game } from "../app/components/SearchBox";
 console.log("[DynamoDB Client Init] AWS_REGION:", process.env.AWS_REGION);
 console.log(
   "[DynamoDB Client Init] AWS_ACCESS_KEY_ID:",
-  process.env.AWS_ACCESS_KEY_ID ? "SET" : "NOT SET"
+  process.env.AWS_ACCESS_KEY_ID
 );
 console.log(
   "[DynamoDB Client Init] AWS_SECRET_ACCESS_KEY:",
