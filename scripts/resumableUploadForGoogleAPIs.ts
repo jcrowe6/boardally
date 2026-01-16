@@ -71,6 +71,7 @@ export function resumableUpload(options: ResumableUploadOptions) : Promise<Uploa
     let startByte = 0;
     let bufferData: Uint8Array[] = [];
     streamTrans.on("data", async (chunk) => {
+      console.log(`[Stream] Received chunk of ${chunk.length} bytes, buffer now has ${Buffer.concat([...bufferData, chunk]).length} bytes`);
       bufferData.push(chunk);
       const temp = Buffer.concat(bufferData);
       if (temp.length >= chunkSize) {
@@ -127,6 +128,7 @@ export function resumableUpload(options: ResumableUploadOptions) : Promise<Uploa
     });
     streamTrans.on("end", async () => {
       const dataChunk = Buffer.concat(bufferData);
+      console.log(`[Stream] End event - final buffer has ${dataChunk.length} bytes, startByte is ${startByte}, total dataSize is ${dataSize}`);
       if (dataChunk.length > 0) {
         // Upload last chunk.
         let upCount = 0;
