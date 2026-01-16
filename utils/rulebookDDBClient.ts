@@ -6,27 +6,12 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import { Game } from "../app/components/SearchBox";
 
-// Debug logging for AWS credentials
-console.log("[DynamoDB Client Init] AWS_REGION:", process.env.AWS_REGION);
-console.log(
-  "[DynamoDB Client Init] AWS_ACCESS_KEY_ID:",
-  process.env.AWS_ACCESS_KEY_ID
-);
-console.log(
-  "[DynamoDB Client Init] AWS_SECRET_ACCESS_KEY:",
-  process.env.AWS_SECRET_ACCESS_KEY ? "SET" : "NOT SET"
-);
-console.log(
-  "[DynamoDB Client Init] AWS_SESSION_TOKEN:",
-  process.env.AWS_SESSION_TOKEN ? "SET" : "NOT SET"
-);
-console.log(
-  "[DynamoDB Client Init] RULEBOOK_TABLE:",
-  process.env.RULEBOOK_TABLE
-);
-
 const dynamoDB = new DynamoDBClient({
   region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  },
 });
 
 const docClient = DynamoDBDocumentClient.from(dynamoDB);
