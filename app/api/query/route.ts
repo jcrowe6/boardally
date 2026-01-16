@@ -106,6 +106,8 @@ export async function POST(req: Request): Promise<Response | undefined> {
 
             const s3Url = await getSecureS3Url(s3_key)
 
+            log(reqid, `Uploading file: ${s3_key}, reported size: ${file_size_in_bytes} bytes`)
+
             const options: ResumableUploadOptions = {
                 fileUrl: s3Url,
                 resumableUrl: env.RESUMABLE_UPLOAD_URL,
