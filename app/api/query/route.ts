@@ -1,8 +1,6 @@
 import { RAGRequestSchema } from "../../../schemas/rag/ragRequestSchema";
 import { z } from "zod";
-import { GoogleAIFileManager, FileMetadataResponse } from "@google/generative-ai/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { resumableUpload, ResumableUploadOptions } from "../../../scripts/resumableUploadForGoogleAPIs"
+import { GoogleGenAI } from "@google/genai";
 import { getBestRuleBook } from "../../../utils/rulebookDDBClient";
 import { getSecureS3Url } from "../../../utils/s3client";
 import ShortUniqueId from "short-unique-id";
@@ -22,14 +20,12 @@ const getRequiredEnvVar = (name: string): string => {
     return value;
 };
 
-const requiredEnvVars = ['GEMINI_API_KEY', 'RESUMABLE_UPLOAD_URL'] as const;
+const requiredEnvVars = ['GEMINI_API_KEY'] as const;
 const env = Object.fromEntries(
     requiredEnvVars.map(key => [key, getRequiredEnvVar(key)])
 );
 
-const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
-const googleFileManager = new GoogleAIFileManager(env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
 
 const uid = new ShortUniqueId({ length: 10 });
 
@@ -39,27 +35,33 @@ function log(request_id: string, message: string) {
 
 function getPrompt(userQuestion: string) {
     return `User question: "${userQuestion}"
-          Instruction: Provide a concise answer to the user's rules question, 
-          referencing the provided rulebook. Cite which section or sections 
+          Instruction: Provide a concise answer to the user's rules question,
+          referencing the provided rulebook. Cite which section or sections
           you used to determine the answer.`;
 }
 
 export async function POST(req: Request): Promise<Response | undefined> {
     const session = await auth()
+
+    // Variables to track user/anon info for incrementing after success
+    let userId: string | null = null;
+    let userInfo: { requestCount: number; resetTimestamp: number; tier: string } | null = null;
+    let anonKey: string | null = null;
+    let anonInfo: { anonKey: string; requestCount: number; resetTimestamp: number; ttl: number } | null = null;
+
     // Rate limiting for logged-in users
     if (session) {
-        const userId = session.user?.id!!;
-        const userInfo = await getUserRequestInfo(userId);
+        userId = session.user?.id!!;
+        userInfo = await getUserRequestInfo(userId);
         console.log(`User ${userId} has ${userInfo.requestCount} requests today`)
+
         // Check if request count needs to be reset (new day)
         const now = new Date();
         const resetTime = new Date(userInfo.resetTimestamp);
 
-        // This logic is what actually resets the user's request count on a new day
-        // TODO consider moving this elsewhere?
         if (now.getTime() > resetTime.getTime()) {
-            // Reset count for new day
-            await updateUserRequestCount(userId, 1, getEndOfDay(now));
+            // Will reset and set to 1 after successful response
+            userInfo = { ...userInfo, requestCount: 0, resetTimestamp: getEndOfDay(now).getTime() };
         } else {
             // Check if user has exceeded their daily limit
             const requestLimit = tierLimits[userInfo.tier]
@@ -72,9 +74,6 @@ export async function POST(req: Request): Promise<Response | undefined> {
                 });
                 return response
             }
-
-            // Increment request count
-            await updateUserRequestCount(userId, userInfo.requestCount + 1, resetTime);
         }
     } else {
         const clientIp = ipAddress(req)
@@ -84,20 +83,26 @@ export async function POST(req: Request): Promise<Response | undefined> {
             anonymousId = nanoid();
             cookieStore.set('anonymousId', anonymousId)
         }
-        const anonKey = `${clientIp}:${anonymousId}`
+        anonKey = `${clientIp}:${anonymousId}`
 
-        const anonInfo = await getAnonymousRequestCount(anonKey);
+        const fetchedAnonInfo = await getAnonymousRequestCount(anonKey);
 
         // Reset logic - similar to authenticated users
         const now = new Date();
-        const resetTime = new Date(anonInfo.resetTimestamp);
+        const resetTime = new Date(fetchedAnonInfo.requestCount !== undefined ? fetchedAnonInfo.resetTimestamp : 0);
 
         if (now.getTime() > resetTime.getTime()) {
-            await updateAnonymousRequestCount(anonKey, 1, getEndOfDay(now));
+            // Will reset and set to 1 after successful response
+            anonInfo = {
+                anonKey,
+                requestCount: 0,
+                resetTimestamp: getEndOfDay(now).getTime(),
+                ttl: fetchedAnonInfo.ttl || Math.floor(Date.now() / 1000) + 60 * 60 * 24
+            };
         } else {
-            const anonLimit = 1; 
+            const anonLimit = 1;
 
-            if (anonInfo.requestCount >= anonLimit) {
+            if (fetchedAnonInfo.requestCount >= anonLimit) {
                 console.log(`Anon ${anonKey} hit their daily limit`)
                 const response = new Response(JSON.stringify({ answer: "Daily request limit reached" }), {
                     headers: { 'Content-Type': 'application/json' },
@@ -106,10 +111,10 @@ export async function POST(req: Request): Promise<Response | undefined> {
                 return response
             }
 
-            await updateAnonymousRequestCount(anonKey, anonInfo.requestCount + 1, resetTime);
+            anonInfo = fetchedAnonInfo as { anonKey: string; requestCount: number; resetTimestamp: number; ttl: number };
         }
-
     }
+
     try {
         const reqbody = await req.json()
 
@@ -130,52 +135,62 @@ export async function POST(req: Request): Promise<Response | undefined> {
 
         log(reqid, `Query: ${gameName}, ${question}`)
 
-        // Check if already in google files
-        // TODO: CACHE, with lower TTL
-        const files = await googleFileManager.listFiles()
+        // Get the S3 pre-signed URL for the PDF
+        const { s3_key, file_size_in_bytes } = await getBestRuleBook(gameId)
+        const s3Url = await getSecureS3Url(s3_key)
 
-        let fileMetadata: FileMetadataResponse | undefined;
+        log(reqid, `Fetching file from S3: ${s3_key}, reported size: ${file_size_in_bytes} bytes`)
 
-        if (files.files) {
-            fileMetadata = files.files.find(fileObj => fileObj.displayName === gameId)
-        }
-
-        if (!fileMetadata) { // Upload file
-            const { s3_key, file_size_in_bytes } = await getBestRuleBook(gameId)
-
-            const s3Url = await getSecureS3Url(s3_key)
-
-            log(reqid, `Uploading file: ${s3_key}, reported size: ${file_size_in_bytes} bytes`)
-
-            const options: ResumableUploadOptions = {
-                fileUrl: s3Url,
-                resumableUrl: env.RESUMABLE_UPLOAD_URL,
-                accessToken: env.GEMINI_API_KEY,
-                dataSize: file_size_in_bytes,
-                metadata: {
-                    file: {
-                        mimeType: "application/pdf",
-                        displayName: gameId,
-                    }
-                }
-            };
-
-            const uploadResult = await resumableUpload(options)
-            fileMetadata = uploadResult.file
-        }
-
-        const result = await model.generateContent([
-            getPrompt(question),
-            {
-                fileData: {
-                    fileUri: fileMetadata.uri,
-                    mimeType: fileMetadata.mimeType,
-                },
+        // Fetch the PDF from S3 and convert to base64 for inline data
+        // Use 'omit' credentials to avoid Vercel adding Authorization headers
+        const pdfResponse = await fetch(s3Url, {
+            method: 'GET',
+            credentials: 'omit',
+            headers: {
+                // Don't add any extra headers - pre-signed URL has auth in query params
             },
-        ]);
+        });
 
-        const answer = result.response.text()
+        if (!pdfResponse.ok) {
+            const errorText = await pdfResponse.text().catch(() => 'Unable to read error body');
+            log(reqid, `S3 fetch failed: ${pdfResponse.status} ${pdfResponse.statusText} - ${errorText}`);
+            throw new Error(`Failed to fetch PDF from S3: ${pdfResponse.status} ${pdfResponse.statusText}`);
+        }
+
+        const pdfBuffer = await pdfResponse.arrayBuffer();
+        const pdfBase64 = Buffer.from(pdfBuffer).toString("base64");
+
+        log(reqid, `PDF fetched successfully, size: ${pdfBuffer.byteLength} bytes`)
+
+        // Use inline data approach (supports PDFs up to 50MB)
+        const result = await ai.models.generateContent({
+            model: "gemini-2.0-flash",
+            contents: [
+                {
+                    role: "user",
+                    parts: [
+                        { text: getPrompt(question) },
+                        {
+                            inlineData: {
+                                mimeType: "application/pdf",
+                                data: pdfBase64,
+                            },
+                        },
+                    ],
+                },
+            ],
+        });
+
+        const answer = result.text
         log(reqid, `Answer: ${answer}`)
+
+        // Increment request count only on successful response
+        if (userId && userInfo) {
+            await updateUserRequestCount(userId, userInfo.requestCount + 1, new Date(userInfo.resetTimestamp));
+        } else if (anonKey && anonInfo) {
+            await updateAnonymousRequestCount(anonKey, anonInfo.requestCount + 1, new Date(anonInfo.resetTimestamp));
+        }
+
         const response = new Response(JSON.stringify({ answer: answer }), {
             headers: { 'Content-Type': 'application/json' },
             status: 200
