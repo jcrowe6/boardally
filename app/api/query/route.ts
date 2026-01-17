@@ -1,8 +1,6 @@
 import { RAGRequestSchema } from "../../../schemas/rag/ragRequestSchema";
 import { z } from "zod";
-import { GoogleAIFileManager, FileMetadataResponse } from "@google/generative-ai/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { resumableUpload, ResumableUploadOptions } from "../../../scripts/resumableUploadForGoogleAPIs"
+import { GoogleGenAI } from "@google/genai";
 import { getBestRuleBook } from "../../../utils/rulebookDDBClient";
 import { getSecureS3Url } from "../../../utils/s3client";
 import ShortUniqueId from "short-unique-id";
@@ -22,14 +20,12 @@ const getRequiredEnvVar = (name: string): string => {
     return value;
 };
 
-const requiredEnvVars = ['GEMINI_API_KEY', 'RESUMABLE_UPLOAD_URL'] as const;
+const requiredEnvVars = ['GEMINI_API_KEY'] as const;
 const env = Object.fromEntries(
     requiredEnvVars.map(key => [key, getRequiredEnvVar(key)])
 );
 
-const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
-const googleFileManager = new GoogleAIFileManager(env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
 
 const uid = new ShortUniqueId({ length: 10 });
 
@@ -132,13 +128,9 @@ export async function POST(req: Request): Promise<Response | undefined> {
 
         // Check if already in google files
         // TODO: CACHE, with lower TTL
-        const files = await googleFileManager.listFiles()
+        const filesPager = await ai.files.list()
 
-        let fileMetadata: FileMetadataResponse | undefined;
-
-        if (files.files) {
-            fileMetadata = files.files.find(fileObj => fileObj.displayName === gameId)
-        }
+        let fileMetadata = filesPager.page.find(file => file.displayName === gameId);
 
         if (!fileMetadata) { // Upload file
             const { s3_key, file_size_in_bytes } = await getBestRuleBook(gameId)
@@ -147,34 +139,39 @@ export async function POST(req: Request): Promise<Response | undefined> {
 
             log(reqid, `Uploading file: ${s3_key}, reported size: ${file_size_in_bytes} bytes`)
 
-            const options: ResumableUploadOptions = {
-                fileUrl: s3Url,
-                resumableUrl: env.RESUMABLE_UPLOAD_URL,
-                accessToken: env.GEMINI_API_KEY,
-                dataSize: file_size_in_bytes,
-                metadata: {
-                    file: {
-                        mimeType: "application/pdf",
-                        displayName: gameId,
-                    }
-                }
-            };
+            // Fetch the file from S3
+            const response = await fetch(s3Url);
+            const fileBlob = await response.blob();
 
-            const uploadResult = await resumableUpload(options)
-            fileMetadata = uploadResult.file
+            // Upload using the new SDK
+            fileMetadata = await ai.files.upload({
+                file: fileBlob,
+                config: {
+                    mimeType: "application/pdf",
+                    displayName: gameId,
+                }
+            });
         }
 
-        const result = await model.generateContent([
-            getPrompt(question),
-            {
-                fileData: {
-                    fileUri: fileMetadata.uri,
-                    mimeType: fileMetadata.mimeType,
+        const result = await ai.models.generateContent({
+            model: "gemini-2.0-flash",
+            contents: [
+                {
+                    role: "user",
+                    parts: [
+                        { text: getPrompt(question) },
+                        {
+                            fileData: {
+                                fileUri: fileMetadata.uri,
+                                mimeType: fileMetadata.mimeType,
+                            },
+                        },
+                    ],
                 },
-            },
-        ]);
+            ],
+        });
 
-        const answer = result.response.text()
+        const answer = result.text
         log(reqid, `Answer: ${answer}`)
         const response = new Response(JSON.stringify({ answer: answer }), {
             headers: { 'Content-Type': 'application/json' },
