@@ -133,10 +133,21 @@ export async function POST(req: Request): Promise<Response | undefined> {
         log(reqid, `Fetching file from S3: ${s3_key}, reported size: ${file_size_in_bytes} bytes`)
 
         // Fetch the PDF from S3 and convert to base64 for inline data
-        const pdfResponse = await fetch(s3Url);
+        // Use 'omit' credentials to avoid Vercel adding Authorization headers
+        const pdfResponse = await fetch(s3Url, {
+            method: 'GET',
+            credentials: 'omit',
+            headers: {
+                // Don't add any extra headers - pre-signed URL has auth in query params
+            },
+        });
+
         if (!pdfResponse.ok) {
-            throw new Error(`Failed to fetch PDF from S3: ${pdfResponse.statusText}`);
+            const errorText = await pdfResponse.text().catch(() => 'Unable to read error body');
+            log(reqid, `S3 fetch failed: ${pdfResponse.status} ${pdfResponse.statusText} - ${errorText}`);
+            throw new Error(`Failed to fetch PDF from S3: ${pdfResponse.status} ${pdfResponse.statusText}`);
         }
+
         const pdfBuffer = await pdfResponse.arrayBuffer();
         const pdfBase64 = Buffer.from(pdfBuffer).toString("base64");
 
