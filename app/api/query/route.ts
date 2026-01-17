@@ -35,9 +35,30 @@ function log(request_id: string, message: string) {
 
 function getPrompt(userQuestion: string) {
     return `User question: "${userQuestion}"
-          Instruction: Provide a concise answer to the user's rules question, 
-          referencing the provided rulebook. Cite which section or sections 
+          Instruction: Provide a concise answer to the user's rules question,
+          referencing the provided rulebook. Cite which section or sections
           you used to determine the answer.`;
+}
+
+async function waitForFileActive(ai: GoogleGenAI, fileName: string, reqid: string, maxAttempts = 60): Promise<void> {
+    for (let i = 0; i < maxAttempts; i++) {
+        const fileInfo = await ai.files.get({ name: fileName });
+
+        if (fileInfo.state === "ACTIVE") {
+            log(reqid, `File ${fileName} is now ACTIVE`);
+            return;
+        }
+
+        if (fileInfo.state === "FAILED") {
+            throw new Error(`File processing failed for ${fileName}`);
+        }
+
+        log(reqid, `File ${fileName} is ${fileInfo.state}, waiting...`);
+        // Wait 2 seconds before checking again
+        await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+
+    throw new Error(`File processing timeout for ${fileName}`);
 }
 
 export async function POST(req: Request): Promise<Response | undefined> {
@@ -151,6 +172,19 @@ export async function POST(req: Request): Promise<Response | undefined> {
                     displayName: gameId,
                 }
             });
+
+            // Wait for the file to be processed
+            if (!fileMetadata.name) {
+                throw new Error(`File upload failed: no name returned for ${gameId}`);
+            }
+            await waitForFileActive(ai, fileMetadata.name, reqid);
+        } else {
+            // Even cached files might still be processing, so check the state
+            log(reqid, `Found cached file: ${fileMetadata.name}, checking state...`);
+            if (!fileMetadata.name) {
+                throw new Error(`Cached file has no name for ${gameId}`);
+            }
+            await waitForFileActive(ai, fileMetadata.name, reqid);
         }
 
         const result = await ai.models.generateContent({
