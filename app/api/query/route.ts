@@ -42,20 +42,26 @@ function getPrompt(userQuestion: string) {
 
 export async function POST(req: Request): Promise<Response | undefined> {
     const session = await auth()
+
+    // Variables to track user/anon info for incrementing after success
+    let userId: string | null = null;
+    let userInfo: { requestCount: number; resetTimestamp: number; tier: string } | null = null;
+    let anonKey: string | null = null;
+    let anonInfo: { anonKey: string; requestCount: number; resetTimestamp: number; ttl: number } | null = null;
+
     // Rate limiting for logged-in users
     if (session) {
-        const userId = session.user?.id!!;
-        const userInfo = await getUserRequestInfo(userId);
+        userId = session.user?.id!!;
+        userInfo = await getUserRequestInfo(userId);
         console.log(`User ${userId} has ${userInfo.requestCount} requests today`)
+
         // Check if request count needs to be reset (new day)
         const now = new Date();
         const resetTime = new Date(userInfo.resetTimestamp);
 
-        // This logic is what actually resets the user's request count on a new day
-        // TODO consider moving this elsewhere?
         if (now.getTime() > resetTime.getTime()) {
-            // Reset count for new day
-            await updateUserRequestCount(userId, 1, getEndOfDay(now));
+            // Will reset and set to 1 after successful response
+            userInfo = { ...userInfo, requestCount: 0, resetTimestamp: getEndOfDay(now).getTime() };
         } else {
             // Check if user has exceeded their daily limit
             const requestLimit = tierLimits[userInfo.tier]
@@ -68,9 +74,6 @@ export async function POST(req: Request): Promise<Response | undefined> {
                 });
                 return response
             }
-
-            // Increment request count
-            await updateUserRequestCount(userId, userInfo.requestCount + 1, resetTime);
         }
     } else {
         const clientIp = ipAddress(req)
@@ -80,20 +83,26 @@ export async function POST(req: Request): Promise<Response | undefined> {
             anonymousId = nanoid();
             cookieStore.set('anonymousId', anonymousId)
         }
-        const anonKey = `${clientIp}:${anonymousId}`
+        anonKey = `${clientIp}:${anonymousId}`
 
-        const anonInfo = await getAnonymousRequestCount(anonKey);
+        const fetchedAnonInfo = await getAnonymousRequestCount(anonKey);
 
         // Reset logic - similar to authenticated users
         const now = new Date();
-        const resetTime = new Date(anonInfo.resetTimestamp);
+        const resetTime = new Date(fetchedAnonInfo.requestCount !== undefined ? fetchedAnonInfo.resetTimestamp : 0);
 
         if (now.getTime() > resetTime.getTime()) {
-            await updateAnonymousRequestCount(anonKey, 1, getEndOfDay(now));
+            // Will reset and set to 1 after successful response
+            anonInfo = {
+                anonKey,
+                requestCount: 0,
+                resetTimestamp: getEndOfDay(now).getTime(),
+                ttl: fetchedAnonInfo.ttl || Math.floor(Date.now() / 1000) + 60 * 60 * 24
+            };
         } else {
-            const anonLimit = 1; 
+            const anonLimit = 1;
 
-            if (anonInfo.requestCount >= anonLimit) {
+            if (fetchedAnonInfo.requestCount >= anonLimit) {
                 console.log(`Anon ${anonKey} hit their daily limit`)
                 const response = new Response(JSON.stringify({ answer: "Daily request limit reached" }), {
                     headers: { 'Content-Type': 'application/json' },
@@ -102,10 +111,10 @@ export async function POST(req: Request): Promise<Response | undefined> {
                 return response
             }
 
-            await updateAnonymousRequestCount(anonKey, anonInfo.requestCount + 1, resetTime);
+            anonInfo = fetchedAnonInfo as { anonKey: string; requestCount: number; resetTimestamp: number; ttl: number };
         }
-
     }
+
     try {
         const reqbody = await req.json()
 
@@ -174,6 +183,14 @@ export async function POST(req: Request): Promise<Response | undefined> {
 
         const answer = result.text
         log(reqid, `Answer: ${answer}`)
+
+        // Increment request count only on successful response
+        if (userId && userInfo) {
+            await updateUserRequestCount(userId, userInfo.requestCount + 1, new Date(userInfo.resetTimestamp));
+        } else if (anonKey && anonInfo) {
+            await updateAnonymousRequestCount(anonKey, anonInfo.requestCount + 1, new Date(anonInfo.resetTimestamp));
+        }
+
         const response = new Response(JSON.stringify({ answer: answer }), {
             headers: { 'Content-Type': 'application/json' },
             status: 200
