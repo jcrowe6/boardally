@@ -1,6 +1,6 @@
 import { RAGRequestSchema } from "../../../schemas/rag/ragRequestSchema";
 import { z } from "zod";
-import { GoogleGenAI, createPartFromUri } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { getBestRuleBook } from "../../../utils/rulebookDDBClient";
 import { getSecureS3Url } from "../../../utils/s3client";
 import ShortUniqueId from "short-unique-id";
@@ -130,9 +130,19 @@ export async function POST(req: Request): Promise<Response | undefined> {
         const { s3_key, file_size_in_bytes } = await getBestRuleBook(gameId)
         const s3Url = await getSecureS3Url(s3_key)
 
-        log(reqid, `Using S3 URL for file: ${s3_key}, reported size: ${file_size_in_bytes} bytes`)
+        log(reqid, `Fetching file from S3: ${s3_key}, reported size: ${file_size_in_bytes} bytes`)
 
-        // Use the S3 URL directly - no upload needed!
+        // Fetch the PDF from S3 and convert to base64 for inline data
+        const pdfResponse = await fetch(s3Url);
+        if (!pdfResponse.ok) {
+            throw new Error(`Failed to fetch PDF from S3: ${pdfResponse.statusText}`);
+        }
+        const pdfBuffer = await pdfResponse.arrayBuffer();
+        const pdfBase64 = Buffer.from(pdfBuffer).toString("base64");
+
+        log(reqid, `PDF fetched successfully, size: ${pdfBuffer.byteLength} bytes`)
+
+        // Use inline data approach (supports PDFs up to 50MB)
         const result = await ai.models.generateContent({
             model: "gemini-2.0-flash",
             contents: [
@@ -140,7 +150,12 @@ export async function POST(req: Request): Promise<Response | undefined> {
                     role: "user",
                     parts: [
                         { text: getPrompt(question) },
-                        createPartFromUri(s3Url, "application/pdf"),
+                        {
+                            inlineData: {
+                                mimeType: "application/pdf",
+                                data: pdfBase64,
+                            },
+                        },
                     ],
                 },
             ],
