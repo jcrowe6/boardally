@@ -4,11 +4,12 @@ import type { Provider } from "next-auth/providers"
 import { DynamoDB, DynamoDBClientConfig } from "@aws-sdk/client-dynamodb"
 import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb"
 import { DynamoDBAdapter } from "@auth/dynamodb-adapter"
- 
+import { createUser } from "utils/userDDBClient"
+
 const providers: Provider[] = [
   Google
 ]
- 
+
 export const providerMap = providers
   .map((provider) => {
     if (typeof provider === "function") {
@@ -27,7 +28,7 @@ const config: DynamoDBClientConfig = {
   },
   region: process.env.AUTH_DYNAMODB_REGION,
 }
-  
+
 const client = DynamoDBDocument.from(new DynamoDB(config), {
   marshallOptions: {
     convertEmptyValues: true,
@@ -35,8 +36,15 @@ const client = DynamoDBDocument.from(new DynamoDB(config), {
     convertClassInstanceToMap: true,
   },
 })
- 
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers,
-  adapter: DynamoDBAdapter(client, { tableName: process.env.NEXT_AUTH_TABLE_NAME })
+  adapter: DynamoDBAdapter(client, { tableName: process.env.NEXT_AUTH_TABLE_NAME }),
+  events: {
+    createUser: async ({ user }) => {
+      if (user.id) {
+        await createUser(user.id)
+      }
+    },
+  },
 })

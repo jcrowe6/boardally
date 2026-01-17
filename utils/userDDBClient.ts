@@ -16,16 +16,54 @@ const dynamoDB = new DynamoDBClient({
 
 const docClient = DynamoDBDocumentClient.from(dynamoDB);
 
-export const tierLimits = {
+export interface UserInfo {
+  userId: string;
+  tier: "free" | "paid";
+  requestCount: number;
+  resetTimestamp: number;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+}
+
+export const tierLimits: Record<"free" | "paid", number> = {
   free: 5,
   paid: 100,
 };
 
-// Right now this function is what creates the user in the User table
-// this gets called in the getUserRequestInfo action on the homepage load, so the record should be there
-// when the user actually makes their first request
-// but isn't good design. should probably create the user in Users when they first sign in with Auth.js TODO
-export async function getUserRequestInfo(userId: string) {
+export async function createUser(userId: string): Promise<UserInfo> {
+  const newUser: UserInfo = {
+    userId,
+    tier: "free",
+    requestCount: 0,
+    resetTimestamp: getEndOfDay(new Date()).getTime(),
+  };
+
+  const putCommand = new PutCommand({
+    TableName: process.env.USERS_TABLE,
+    Item: newUser,
+    ConditionExpression: "attribute_not_exists(userId)",
+  });
+
+  try {
+    await docClient.send(putCommand);
+    console.log(`Created user ${userId} in Users table`);
+    return newUser;
+  } catch (error: unknown) {
+    // If user already exists, that's fine - just fetch and return
+    if (
+      error instanceof Error &&
+      error.name === "ConditionalCheckFailedException"
+    ) {
+      console.log(`User ${userId} already exists in Users table`);
+      const existingUser = await getUserRequestInfo(userId);
+      return existingUser;
+    }
+    console.error("Error creating user:", error);
+    throw error;
+  }
+}
+
+export async function getUserRequestInfo(userId: string): Promise<UserInfo> {
   const getUserCommand = new GetCommand({
     TableName: process.env.USERS_TABLE,
     Key: { userId },
@@ -35,24 +73,11 @@ export async function getUserRequestInfo(userId: string) {
     const userResult = await docClient.send(getUserCommand);
 
     if (!userResult.Item) {
-      const defaultUser = {
-        userId,
-        tier: "free",
-        requestCount: 0,
-        resetTimestamp: getEndOfDay(new Date()).getTime(),
-      };
-
-      const putDefaultUserCommand = new PutCommand({
-        TableName: process.env.USERS_TABLE,
-        Item: defaultUser,
-      });
-
-      await docClient.send(putDefaultUserCommand);
-      console.log(`Created default user ${userId}`);
-      return defaultUser;
+      // User should be created at sign-in, but create as fallback for existing users
+      return createUser(userId);
     }
 
-    return userResult.Item;
+    return userResult.Item as UserInfo;
   } catch (error) {
     console.error("Error fetching user request info:", error);
     throw error;
@@ -87,4 +112,70 @@ export function getEndOfDay(date: Date) {
   const end = new Date(date);
   end.setHours(23, 59, 59, 999);
   return end;
+}
+
+export async function updateUserStripeInfo(
+  userId: string,
+  stripeCustomerId: string,
+  stripeSubscriptionId: string,
+  tier: "free" | "paid"
+) {
+  const updateCommand = new UpdateCommand({
+    TableName: process.env.USERS_TABLE,
+    Key: { userId },
+    UpdateExpression:
+      "set stripeCustomerId = :customerId, stripeSubscriptionId = :subId, tier = :tier",
+    ExpressionAttributeValues: {
+      ":customerId": stripeCustomerId,
+      ":subId": stripeSubscriptionId,
+      ":tier": tier,
+    },
+  });
+
+  try {
+    await docClient.send(updateCommand);
+  } catch (error) {
+    console.error("Error updating user stripe info:", error);
+    throw error;
+  }
+}
+
+export async function updateUserTier(userId: string, tier: "free" | "paid") {
+  const updateCommand = new UpdateCommand({
+    TableName: process.env.USERS_TABLE,
+    Key: { userId },
+    UpdateExpression: "set tier = :tier",
+    ExpressionAttributeValues: {
+      ":tier": tier,
+    },
+  });
+
+  try {
+    await docClient.send(updateCommand);
+  } catch (error) {
+    console.error("Error updating user tier:", error);
+    throw error;
+  }
+}
+
+export async function getUserByStripeCustomerId(stripeCustomerId: string) {
+  // Note: This requires a scan since stripeCustomerId is not the PK
+  // For production, consider adding a GSI on stripeCustomerId
+  const { ScanCommand } = await import("@aws-sdk/lib-dynamodb");
+
+  const scanCommand = new ScanCommand({
+    TableName: process.env.USERS_TABLE,
+    FilterExpression: "stripeCustomerId = :customerId",
+    ExpressionAttributeValues: {
+      ":customerId": stripeCustomerId,
+    },
+  });
+
+  try {
+    const result = await docClient.send(scanCommand);
+    return result.Items?.[0] || null;
+  } catch (error) {
+    console.error("Error finding user by stripe customer ID:", error);
+    throw error;
+  }
 }
