@@ -1,6 +1,6 @@
 import { RAGRequestSchema } from "../../../schemas/rag/ragRequestSchema";
 import { z } from "zod";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, createPartFromUri } from "@google/genai";
 import { getBestRuleBook } from "../../../utils/rulebookDDBClient";
 import { getSecureS3Url } from "../../../utils/s3client";
 import ShortUniqueId from "short-unique-id";
@@ -38,27 +38,6 @@ function getPrompt(userQuestion: string) {
           Instruction: Provide a concise answer to the user's rules question,
           referencing the provided rulebook. Cite which section or sections
           you used to determine the answer.`;
-}
-
-async function waitForFileActive(ai: GoogleGenAI, fileName: string, reqid: string, maxAttempts = 60): Promise<void> {
-    for (let i = 0; i < maxAttempts; i++) {
-        const fileInfo = await ai.files.get({ name: fileName });
-
-        if (fileInfo.state === "ACTIVE") {
-            log(reqid, `File ${fileName} is now ACTIVE`);
-            return;
-        }
-
-        if (fileInfo.state === "FAILED") {
-            throw new Error(`File processing failed for ${fileName}`);
-        }
-
-        log(reqid, `File ${fileName} is ${fileInfo.state}, waiting...`);
-        // Wait 2 seconds before checking again
-        await new Promise(resolve => setTimeout(resolve, 2000));
-    }
-
-    throw new Error(`File processing timeout for ${fileName}`);
 }
 
 export async function POST(req: Request): Promise<Response | undefined> {
@@ -147,46 +126,13 @@ export async function POST(req: Request): Promise<Response | undefined> {
 
         log(reqid, `Query: ${gameName}, ${question}`)
 
-        // Check if already in google files
-        // TODO: CACHE, with lower TTL
-        const filesPager = await ai.files.list()
+        // Get the S3 pre-signed URL for the PDF
+        const { s3_key, file_size_in_bytes } = await getBestRuleBook(gameId)
+        const s3Url = await getSecureS3Url(s3_key)
 
-        let fileMetadata = filesPager.page.find(file => file.displayName === gameId);
+        log(reqid, `Using S3 URL for file: ${s3_key}, reported size: ${file_size_in_bytes} bytes`)
 
-        if (!fileMetadata) { // Upload file
-            const { s3_key, file_size_in_bytes } = await getBestRuleBook(gameId)
-
-            const s3Url = await getSecureS3Url(s3_key)
-
-            log(reqid, `Uploading file: ${s3_key}, reported size: ${file_size_in_bytes} bytes`)
-
-            // Fetch the file from S3
-            const response = await fetch(s3Url);
-            const fileBlob = await response.blob();
-
-            // Upload using the new SDK
-            fileMetadata = await ai.files.upload({
-                file: fileBlob,
-                config: {
-                    mimeType: "application/pdf",
-                    displayName: gameId,
-                }
-            });
-
-            // Wait for the file to be processed
-            if (!fileMetadata.name) {
-                throw new Error(`File upload failed: no name returned for ${gameId}`);
-            }
-            await waitForFileActive(ai, fileMetadata.name, reqid);
-        } else {
-            // Even cached files might still be processing, so check the state
-            log(reqid, `Found cached file: ${fileMetadata.name}, checking state...`);
-            if (!fileMetadata.name) {
-                throw new Error(`Cached file has no name for ${gameId}`);
-            }
-            await waitForFileActive(ai, fileMetadata.name, reqid);
-        }
-
+        // Use the S3 URL directly - no upload needed!
         const result = await ai.models.generateContent({
             model: "gemini-2.0-flash",
             contents: [
@@ -194,12 +140,7 @@ export async function POST(req: Request): Promise<Response | undefined> {
                     role: "user",
                     parts: [
                         { text: getPrompt(question) },
-                        {
-                            fileData: {
-                                fileUri: fileMetadata.uri,
-                                mimeType: fileMetadata.mimeType,
-                            },
-                        },
+                        createPartFromUri(s3Url, "application/pdf"),
                     ],
                 },
             ],
