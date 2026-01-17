@@ -28,6 +28,9 @@ export default async function Navbar() {
                 />
               )}
               <span className="text-primary-text hidden md:block">{session.user?.name || session.user?.email}</span>
+              <Link href="/account" className="text-primary-text hover:underline">
+                Account
+              </Link>
               <SignOutButton />
             </div>
           ) : (
