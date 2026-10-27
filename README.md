@@ -1,3 +1,3 @@
-# Boardally
+# Boardally 🪦 (defunct)
 
-RAG app for when you need some board game rules assistance
+Boardally was a RAG app for when you need some board game rules assistance
